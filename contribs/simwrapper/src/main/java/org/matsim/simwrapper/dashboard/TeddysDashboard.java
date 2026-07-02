@@ -2,6 +2,7 @@ package org.matsim.simwrapper.dashboard;
 
 import org.matsim.api.core.v01.TransportMode;
 import org.matsim.application.analysis.LogFileAnalysis;
+import org.matsim.application.analysis.population.TripAnalysis;
 import org.matsim.application.analysis.traffic.TrafficAnalysis;
 import org.matsim.application.prepare.network.CreateAvroNetwork;
 import org.matsim.simwrapper.*;
@@ -34,47 +35,16 @@ public class TeddysDashboard implements Dashboard {
 		header.title = "Ted's Custom Dashboard";
 		header.description = "My version's of overview of the MATSim Berlin v7.1 run :)";
 
-		layout.row("first").el(Table.class, (viz, data) -> {
-			viz.title = "Run Info";
-			viz.showAllRows = true;
-			viz.dataset = data.compute(LogFileAnalysis.class, "run_info.csv");
-			viz.width = 1d;
-		}).el(MapPlot.class, (viz, data) -> {
-
-			viz.title = "Simulated traffic volume";
-			viz.description = DashboardUtils.adjustDescriptionBasedOnSampling("Volume for the modes " + modes + ".", data, true);
-			viz.center = data.context().getCenter();
-			viz.zoom = data.context().getMapZoomLevel();
-			viz.height = 7.5;
-			viz.width = 2.0;
-
-			viz.setShape(data.compute(CreateAvroNetwork.class, "network.avro", "--with-properties"), "linkId");
-			viz.addDataset("traffic", data.compute(TrafficAnalysis.class, "traffic_stats_by_link_daily.csv", argsForTrafficAnalysis));
-
-			viz.display.lineColor.dataset = "traffic";
-			viz.display.lineColor.columnName = "simulated_traffic_volume";
-			viz.display.lineColor.join = "link_id";
-			viz.display.lineColor.setColorRamp(ColorScheme.RdYlBu, 5, true);
-
-			viz.display.lineWidth.dataset = "traffic";
-			viz.display.lineWidth.columnName = "simulated_traffic_volume";
-			viz.display.lineWidth.scaleFactor = 20000d;
-			viz.display.lineWidth.join = "link_id";
-
-
-		});
-
 		// Info about the status of the run
 		layout.row("warnings").el(TextBlock.class, (viz, data) -> {
 			viz.file = data.compute(LogFileAnalysis.class, "status.md");
 		});
 
-		layout.row("config").el(XML.class, (viz, data) -> {
-			viz.file = data.output("(*.)?output_config.xml");
-			viz.height = 6d;
-			viz.width = 2d;
-			viz.unfoldLevel = 1;
-
+		layout.row("first").el(Table.class, (viz, data) -> {
+			viz.title = "Run Info";
+			viz.showAllRows = true;
+			viz.dataset = data.compute(LogFileAnalysis.class, "run_info.csv");
+			viz.width = 1d;
 		}).el(PieChart.class, (viz, data) -> {
 			viz.title = "Mode Share";
 			viz.description = "at final Iteration; result of the complete population and without filtering by area or person attributes";
@@ -82,7 +52,6 @@ public class TeddysDashboard implements Dashboard {
 			viz.ignoreColumns = List.of("iteration");
 			viz.useLastRow = true;
 		});
-
 
 		layout.row("second").el(Line.class, (viz, data) -> {
 
@@ -115,12 +84,14 @@ public class TeddysDashboard implements Dashboard {
 			viz.columns = List.of("seconds");
 			viz.dataset = data.compute(LogFileAnalysis.class, "runtime_stats.csv");
 
-		}).el(Plotly.class, (viz, data) -> {
-			viz.title = "Memory Usage";
+		});
 
-			viz.layout = tech.tablesaw.plotly.components.Layout.builder().xAxis(Axis.builder().title("Time").build()).yAxis(Axis.builder().title("MB").build()).barMode(tech.tablesaw.plotly.components.Layout.BarMode.STACK).build();
-
-			viz.addTrace(BarTrace.builder(Plotly.OBJ_INPUT, Plotly.INPUT).build(), viz.addDataset(data.compute(LogFileAnalysis.class, "memory_stats.csv")).pivot(List.of("time"), "names", "values").mapping().name("names").x("time").y("values"));
+		layout.row("fourth").el(Table.class, (viz, data) -> {
+			viz.title = "Mode Chains";
+			viz.description = "Distribution of Multi-modal mode chains, where a chain is the ordered sequence of more than 2 unique transport modes used within a single trip, different ordering of the same combination are not considered.";
+			viz.showAllRows = true;
+			viz.dataset = data.compute(TripAnalysis.class, "mode_chains.csv");;
+			viz.width = 1d;
 		});
 	}
 
