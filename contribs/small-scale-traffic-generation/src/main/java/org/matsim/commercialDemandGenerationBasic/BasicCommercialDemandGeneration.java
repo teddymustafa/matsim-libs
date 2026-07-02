@@ -46,6 +46,7 @@ import org.matsim.simwrapper.SimWrapperConfigGroup;
 import org.matsim.simwrapper.SimWrapperModule;
 import org.matsim.simwrapper.dashboard.CarrierDashboard;
 import org.matsim.simwrapper.dashboard.OverviewDashboard;
+import org.matsim.simwrapper.dashboard.TeddysDashboard;
 import picocli.CommandLine;
 
 import java.io.IOException;
@@ -481,6 +482,7 @@ public class BasicCommercialDemandGeneration implements MATSimAppCommand {
 		sw.getConfigGroup().setDefaultDashboards(SimWrapperConfigGroup.DefaultDashboardsMode.disabled);
 		sw.addDashboard(new OverviewDashboard(Set.copyOf(scenario.getConfig().qsim().getMainModes())));
 		sw.addDashboard(new CarrierDashboard("(*.)?output_carriers_withPlans.xml.gz"));
+		sw.addDashboard(new TeddysDashboard(Set.copyOf(scenario.getConfig().qsim().getMainModes())));
 		controller.addOverridingModule(new SimWrapperModule(sw));
 		controller.getConfig().vspExperimental().setVspDefaultsCheckingLevel(VspExperimentalConfigGroup.VspDefaultsCheckingLevel.abort);
 		return controller;

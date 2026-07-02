@@ -122,7 +122,10 @@ final class CreateSingleSimWrapperDashboard implements MATSimAppCommand {
 
 					sw.addDashboard(new ImpactAnalysisDashboard(modes));
 				}
-				default -> throw new IllegalArgumentException("unkown dashboard type: " + dashboardType);
+				case teddysDashboard -> {
+					sw.addDashboard(new TeddysDashboard(Set.copyOf(config.qsim().getMainModes())));
+				}
+				default -> throw new IllegalArgumentException("unknown dashboard type: " + dashboardType);
 			}
 
 			try {
@@ -148,7 +151,8 @@ final class CreateSingleSimWrapperDashboard implements MATSimAppCommand {
 		ODTrip,
 		trip,
 		publicTransit,
-		impactAnalysis
+		impactAnalysis,
+		teddysDashboard
 	}
 
 }
