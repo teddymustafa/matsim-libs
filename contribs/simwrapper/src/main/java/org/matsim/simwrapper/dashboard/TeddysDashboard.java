@@ -90,7 +90,7 @@ public class TeddysDashboard implements Dashboard {
 			viz.title = "Mode Chains";
 			viz.description = "Distribution of Multi-modal mode chains, where a chain is the ordered sequence of more than 2 unique transport modes used within a single trip, different ordering of the same combination are not considered.";
 			viz.showAllRows = true;
-			viz.dataset = data.compute(TripAnalysis.class, "mode_chains.csv");;
+			viz.dataset = data.output("mode_chains.csv");;
 			viz.width = 1d;
 		});
 	}

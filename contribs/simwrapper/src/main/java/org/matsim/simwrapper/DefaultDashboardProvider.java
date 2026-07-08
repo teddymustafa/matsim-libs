@@ -22,7 +22,8 @@ public class DefaultDashboardProvider implements DashboardProvider {
 			new OverviewDashboard(Set.copyOf(config.qsim().getMainModes())),
 			new TripDashboard(),
 			new TrafficDashboard(Set.copyOf(config.qsim().getMainModes())),
-			new TeddysDashboard(Set.copyOf(config.qsim().getMainModes()))
+			new TeddysDashboard(Set.copyOf(config.qsim().getMainModes())),
+			new ElasticityDashboard(Set.copyOf(config.qsim().getMainModes()))
 		));
 
 		if (config.transit().isUseTransit()) {
