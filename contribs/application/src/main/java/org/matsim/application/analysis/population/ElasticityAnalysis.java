@@ -1,154 +1,117 @@
 package org.matsim.application.analysis.population;
 
+import it.unimi.dsi.fastutil.ints.Int2DoubleMap;
+import it.unimi.dsi.fastutil.ints.Int2DoubleOpenHashMap;
+import it.unimi.dsi.fastutil.objects.Object2DoubleMap;
+import it.unimi.dsi.fastutil.objects.Object2DoubleOpenHashMap;
+import org.apache.commons.csv.CSVFormat;
+import org.apache.commons.csv.CSVParser;
+import org.apache.commons.csv.CSVPrinter;
+import org.apache.commons.csv.CSVRecord;
+import org.matsim.api.core.v01.Id;
+import org.matsim.api.core.v01.events.ActivityStartEvent;
+import org.matsim.api.core.v01.events.PersonStuckEvent;
+import org.matsim.api.core.v01.network.Link;
+import org.matsim.application.CommandSpec;
+import org.matsim.application.MATSimAppCommand;
+import org.matsim.application.options.InputOptions;
+import org.matsim.application.options.OutputOptions;
 import org.matsim.core.config.Config;
 import org.matsim.core.config.ConfigUtils;
-
 import java.io.*;
 import java.nio.charset.StandardCharsets;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.Map;
-import java.util.Set;
-import java.util.zip.GZIPInputStream;
+import java.nio.file.Files;
+import java.text.DecimalFormat;
+import java.text.DecimalFormatSymbols;
+import java.util.*;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.matsim.core.utils.io.IOUtils;
+import picocli.CommandLine;
 
-class ElasticityAnalysis {
+
+@CommandLine.Command (name = "elasticity", description = "Generates statistics for elasticity.")
+@CommandSpec(requires = {"trips.csv"}, produces = {"trips_curated.csv","elasticity.csv"})
+public class ElasticityAnalysis implements MATSimAppCommand {
+
+	// Creating Log
+	private static final Logger log = LogManager.getLogger(ElasticityAnalysis.class);
+
+	// Config and input files used
+	private static final File configFile = new File("/home/teddymustafa/Desktop/FG-VSP/elasticity/berlin-v7.1-1pct.output_config.xml");
+	private static final Config config = ConfigUtils.loadConfig(configFile.getPath());
+	private static final File inputFile = new File("/home/teddymustafa/Desktop/FG-VSP/elasticity/berlin-v7.1-1pct.output_trips.csv.gz"); // ABSOLUTER PFAD HIER
+	private static final File outputFile = new File("home/teddymustafa/Desktop/FG-VSP/elasticity/analysis/elasticity/elasticity.csv"); // ABSOLUTER PFAD HIER
+
+	// Miscellaneous: Sets, Maps and things
+	// Parsing .csv
+	private static final String delimiter = ";";
+
+	// Stores relevantModes, pricePerMeterByMode
+	private static final Set<String> RELEVANT_MODES = new LinkedHashSet<>(Set.of("car", "ride"));
+	private final Map<String, Double> pricePerMeterByMode = new LinkedHashMap<>();
+	private static final double marginalUtilityOfMoney = config.scoring().getScoringParameters(null).getMarginalUtilityOfMoney();
+	private static final Map<String, Double> sumDistMode = new LinkedHashMap<>();
+	private static final Map<String, Set<String>> personsByMode = new LinkedHashMap<>();
+
+	private final Set<String> allAgents = new HashSet<>();
+
 	public static void main() {
+		new ElasticityAnalysis().execute();
+	}
 
-		//TODO: dont use absolute path for interoperability
+	@Override
+	public Integer call() throws Exception {
 
-		File configFile = new File("/home/teddymustafa/Desktop/FG-VSP/elasticity/berlin-v7.1-1pct.output_config.xml");
-		Config config = ConfigUtils.loadConfig(configFile.getPath());
+		Files.createDirectories(outputFile.toPath());
 
-		File inputFile = new File("/home/teddymustafa/Desktop/FG-VSP/elasticity/berlin-v7.1-1pct.output_trips.csv.gz"); // ABSOLUTER PFAD HIER
-		File outputFile = new File("home/teddymustafa/Desktop/FG-VSP/elasticity/analysis/elasticity/elasticity.csv"); // ABSOLUTER PFAD HIER
+		try(Reader reader = IOUtils.getBufferedReader(inputFile.toString());
+			CSVParser parser = CSVFormat.DEFAULT.builder()
+                 .setHeader()              // reads first row as column names
+                 .setSkipHeaderRecord(true)
+                 .build()
+                 .parse(reader);
 
+			CSVPrinter printer = new CSVPrinter(
+			IOUtils.getBufferedWriter(outputFile.toString()), CSVFormat.DEFAULT.builder()
+				.setHeader("person","traveled_distance","main_mode","longest_distance_mode")
+				.build())) {
 
-		String delimiter = ";";
-		//TODO: Commandline Argument Funktionalität hinzufügen
-		Set<String> relevantModes = Set.of("car", "ride");
-		Map<String, Double> pricePerMeterByMode = new HashMap<>();
+			for (String m : RELEVANT_MODES) {
+				sumDistMode.put(m, 0.0);
+				personsByMode.put(m, new HashSet<>());
+			}
 
-		for (String mode : relevantModes) {
+			for (CSVRecord record : parser) {
+				String person = record.get("person");
+				String mode = record.get("main_mode");
+				double distance = Double.parseDouble(record.get("traveled_distance"));
+
+				if(RELEVANT_MODES.contains(mode)){
+					sumDistMode.put(mode, sumDistMode.get(mode) + distance);
+					personsByMode.get(mode).add(person);
+				}
+			}
+		} catch (IOException ex) {
+			log.error(ex);
+		}
+		return 0;
+	}
+
+	private Map<String, Double> computePricePerMeterByMode(Set<String> relevantModes){
+		for (String mode : RELEVANT_MODES) {
 			double rate = config.scoring()
-					.getScoringParameters(null)
-					.getModes()
-					.get(mode)
-					.getMonetaryDistanceRate();
+				.getScoringParameters(null)
+				.getModes()
+				.get(mode)
+				.getMonetaryDistanceRate();
 
 			System.out.println("mode = " + mode + ", monetaryDistanceRate = " + rate);
-
+			log.debug("mode={}, monetaryDistanceRate{}", mode, rate);
 			pricePerMeterByMode.put(mode, rate);
 		}
-
-
-		//TODO: selber in config.xml suchen
-		double marginalUtilityOfMoney = config.scoring().getScoringParameters(null).getMarginalUtilityOfMoney();
-
-
-		// creates any missing folders in the path
-		outputFile.getParentFile().mkdirs();
-		try(
-
-			FileInputStream inSt = new FileInputStream(inputFile); // raw compressed bytes
-			GZIPInputStream inGZ = new GZIPInputStream(inSt); // decompressed bytes
-			InputStreamReader inReader = new InputStreamReader(inGZ, StandardCharsets.UTF_8);
-			BufferedReader in = new BufferedReader(inReader);
-
-			FileWriter outWriter = new FileWriter(outputFile);
-			BufferedWriter out = new BufferedWriter(outWriter);
-			) {
-
-
-			// Checks for header
-			String headerLine = in.readLine();
-
-			// Array that stores header
-			String[] header = headerLine.split(delimiter);
-
-			// a placeholder its impossible for array to possess negative value*
-			int idxPerson = -1;
-			int idxTravDist = -1;
-			int idxMainMode = -1;
-			int idxLongestMode = -1;
-
-			//checks for position of the relevant header and consequently the column
-			for(int i = 0; i < header.length; i++){
-				if (header[i].equals("person")) idxPerson = i;
-				if (header[i].equals("traveled_distance")) idxTravDist = i;
-				if (header[i].equals("main_mode")) idxMainMode = i;
-				if (header[i].equals("longest_distance_mode")) idxLongestMode = i;
-			}
-
-			// *which is relevant for this IllegalStateException
-			if(idxPerson == -1  || idxMainMode == -1 || idxTravDist == -1 || idxLongestMode == -1 ){
-				throw new IllegalStateException(
-					"Expected column not found in header:" + headerLine);
-			}
-
-			// Map that stores keystring "mode" and double "sum of distance"
-			Map<String, Double> sumDistMode = new HashMap<>();
-			// Map that stores keystring "mode" and set of  "personsByMode"
-			Map<String, Set<String>> personsByMode = new HashMap<>();
-			for (String mode : relevantModes){
-				sumDistMode.put(mode, 0.0);
-				personsByMode.put(mode, new HashSet<>());
-			}
-
-			// lets no duplicate
-			Set<String> allPersons = new HashSet<>();
-
-			String line;
-			while ((line = in.readLine()) != null){
-				if (line.isBlank()){
-					continue;
-				}
-
-				String[] row = line.split(delimiter);
-
-				String person = row[idxPerson];
-
-				allPersons.add(person);
-
-				String mainMode = row[idxMainMode];
-				String longestMode = row[idxLongestMode];
-
-				// filter(mainmode == car,ride && longestmode == car,ride )
-				if(relevantModes.contains(mainMode) && relevantModes.contains(longestMode)){
-					double distance = Double.parseDouble(row[idxTravDist]);
-					sumDistMode.put(mainMode, sumDistMode.get(mainMode) + distance);
-					personsByMode.get(mainMode).add(person);
-				}
-			}
-
-			int nPersonsTotal = allPersons.size();
-
-			out.write("mode,elasticity");
-			out.newLine();
-
-			for (String mode : relevantModes) {
-				int nPersonsMode = personsByMode.get(mode).size();
-				double sumDistance = sumDistMode.get(mode);
-
-				double avgDistance = sumDistance/nPersonsMode;
-
-				double pricePerMeter = pricePerMeterByMode.get(mode);
-				double price = avgDistance*pricePerMeter;
-				// anzahl trips bestimmter mode durch gesamtzahl des trips
-				double modeShare = (double) nPersonsMode / nPersonsTotal;
-				double elasticity = -marginalUtilityOfMoney * (price * (1 - modeShare));
-
-				out.write(mode + "," + elasticity);
-				out.newLine();
-
-			}
-
-			System.out.println("Results saved to "+ outputFile);
-
-		}
-
-		catch (Exception e) {
-			System.out.println(e);
-		}
-
+		return pricePerMeterByMode;
 	}
+
+
 }
