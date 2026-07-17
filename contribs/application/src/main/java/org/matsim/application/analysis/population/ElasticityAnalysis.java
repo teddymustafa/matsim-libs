@@ -41,17 +41,13 @@ import tech.tablesaw.io.csv.CsvReadOptions;
 	description = "Generates statistics for elasticity."
 )
 @CommandSpec(
-	requires = {"trips.csv"},
+	requires = {"trips.csv", "config.xml"},
 	produces = {"elasticity_stats.csv"}
-	// trips_curated.csv is just a Zwischenschritt tbh
 )
 public class ElasticityAnalysis implements MATSimAppCommand {
 
 	// Creating Log
 	private static final Logger log = LogManager.getLogger(ElasticityAnalysis.class);
-	private static final File configFile = new File("/home/teddymustafa/Desktop/FG-VSP/elasticity/berlin-v7.1-1pct.output_config.xml");
-	private static final Config config = ConfigUtils.loadConfig(configFile.getPath());
-	//CommandLine Options
 
 	@CommandLine.Mixin
 	private final InputOptions input = InputOptions.ofCommand(ElasticityAnalysis.class);
@@ -67,9 +63,10 @@ public class ElasticityAnalysis implements MATSimAppCommand {
 //	private final String groupBy = null;
 
 	// Shared state across stages -> fields
-	private static final double BETA_MONEY = config.scoring().getScoringParameters(null).getMarginalUtilityOfMoney();
 	private Table tripsCurated;
 	private Table tripsMode;
+	private Config config;
+	private double betaMoney;
 
 	// ERGEBNIS
 	private final Object2DoubleMap<String> elasticity = new Object2DoubleOpenHashMap<>();
@@ -77,12 +74,15 @@ public class ElasticityAnalysis implements MATSimAppCommand {
 
 
 	public static void main(String[] args) throws Exception {
-//		new ElasticityAnalysis().call();
+//		new ElasticityAnalysis().call(); | FOR HARDCODING
 		new ElasticityAnalysis().execute(args);
 	}
 
 	@Override
 	public Integer call() throws Exception {
+
+		config = ConfigUtils.loadConfig(input.getPath("config.xml"));
+		betaMoney = config.scoring().getScoringParameters(null).getMarginalUtilityOfMoney();
 
 		tripsCurated = Table.read().csv(
 			CsvReadOptions.builder(IOUtils.getBufferedReader(input.getPath("trips.csv")))
@@ -187,7 +187,7 @@ public class ElasticityAnalysis implements MATSimAppCommand {
 
 			 double modeShare = calculateModeSharePerMode(mode); // personsByMode.get(mode).size();
 			 double price = calculateMonetaryCostPerTripPerMode(mode);
-			 double e = -BETA_MONEY * (price * (1-modeShare));
+			 double e = -betaMoney * (price * (1-modeShare));
 			 log.info("elasticity for {} = {}", mode, e);
 			 elasticity.put(mode, e);
 
