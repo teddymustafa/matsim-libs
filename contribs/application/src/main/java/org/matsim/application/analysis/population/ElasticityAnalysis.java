@@ -64,14 +64,16 @@ public class ElasticityAnalysis implements MATSimAppCommand {
 
 	// Shared state across stages -> fields
 	private Table tripsCurated;
-	private Table tripsMode;
 	private Config config;
 	private double betaMoney;
 
-	// ERGEBNIS
+	// ERGEBNISSE
 	private final Object2DoubleMap<String> elasticity = new Object2DoubleOpenHashMap<>();
 	private final Object2IntMap<String> nPersons = new Object2IntOpenHashMap<>();
-
+	private final Object2IntMap<String> nTrips = new Object2IntOpenHashMap<>();
+	private final Object2DoubleMap<String> modeShare = new Object2DoubleOpenHashMap<>();
+	private final Object2DoubleMap<String> avgDistance = new Object2DoubleOpenHashMap<>();
+	private final Object2DoubleMap<String> monetaryCost = new Object2DoubleOpenHashMap<>();
 
 	public static void main(String[] args) throws Exception {
 //		new ElasticityAnalysis().call(); | FOR HARDCODING
@@ -90,13 +92,6 @@ public class ElasticityAnalysis implements MATSimAppCommand {
 				.sample(false)
 				.separator(CsvOptions.detectDelimiter(input.getPath("trips.csv")))
 				.build());
-
-		if (modes == null || modes.isEmpty()){
-			tripsMode = tripsCurated;
-		} else {
-		tripsMode = tripsCurated.where(
-			tripsCurated.stringColumn("main_mode").isIn(modes));
-		}
 
 		calculatenInfo();
 		log.info("nPersonsTotal successfully calculated");
@@ -134,7 +129,7 @@ public class ElasticityAnalysis implements MATSimAppCommand {
 	private void calculatenPersons(Set<String> modes){
 		for (String mode: modes){
 
-			int nPerson = tripsMode.where(tripsMode.stringColumn("main_mode").isEqualTo(mode))
+			int nPerson = tripsCurated.where(tripsCurated.stringColumn("main_mode").isEqualTo(mode))
 				.stringColumn("person")
 				.countUnique();
 			nPersons.put(mode, nPerson);
@@ -161,19 +156,23 @@ public class ElasticityAnalysis implements MATSimAppCommand {
 	 * calculate ModeShare
 	 * */
 	private double calculateModeSharePerMode(String mode) throws IOException{
-		double tripsOfMode = tripsCurated.stringColumn("main_mode").countOccurrences(mode);
-		double modeShare = tripsOfMode / tripsCurated.rowCount();
-		log.info("modeShare for "+ mode +" = "+ modeShare);
-		return modeShare;
+		int tripsOfMode = tripsCurated.stringColumn("main_mode").countOccurrences(mode);
+		nTrips.put(mode, tripsOfMode);
+		double share = (double) tripsOfMode / tripsCurated.rowCount();
+		modeShare.put(mode, share);
+		log.info("modeShare for "+ mode +" = "+ share);
+		return share;
 	}
 	/**
 	 * calculate Monetary cost per trip by mode
 	 * */
 	private double calculateMonetaryCostPerTripPerMode(String mode) throws IOException{
-		double avgDist = tripsMode.doubleColumn("traveled_distance")
-			.where(tripsMode.stringColumn("main_mode").isEqualTo(mode))
+		double avgDist = tripsCurated.doubleColumn("traveled_distance")
+			.where(tripsCurated.stringColumn("main_mode").isEqualTo(mode))
 			.mean();
+		avgDistance.put(mode, avgDist);
 		double price = calculateMonetaryDistanceRateByMode(mode) * avgDist;
+		monetaryCost.put(mode, price);
 		log.info("monetaryCostPerTrip for "+ mode +" = "+ price);
 		return price;
 	}
@@ -196,13 +195,14 @@ public class ElasticityAnalysis implements MATSimAppCommand {
 
 	private void writeElasticityStats() throws IOException{
 		try (BufferedWriter writer = IOUtils.getBufferedWriter(output.getPath("elasticity_stats.csv").toString())){
-			writer.write("mode;nPersons;elasticity");
+			writer.write("mode;nPersons;nTrips;modeshare;monetarycost;avg_distance;elasticity");
 			writer.newLine();
 			for (String mode:modes){
-				int trips = tripsMode.stringColumn("main_mode").countOccurrences(mode);
-				writer.write(mode + ";" + nPersons.getInt(mode) + ";" + elasticity.getDouble(mode));
+				int trips = tripsCurated.stringColumn("main_mode").countOccurrences(mode);
+				writer.write(mode + ";" + nPersons.getInt(mode) + ";" + nTrips.getInt(mode) + ";" + modeShare.getDouble(mode) + ";" + monetaryCost.getDouble(mode) + ";" + avgDistance.getDouble(mode)+ ";" +elasticity.getDouble(mode));
 				writer.newLine();
 			}
+			writer.write("Total" + ";" + tripsCurated.stringColumn("person").countUnique() + ";" + tripsCurated.rowCount() + ";" + " " + ";" + " " + ";" + " " + ";" + " " + ";" + " " + ";");
 		}
 		log.info("write complete!");
 	}
