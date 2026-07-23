@@ -35,14 +35,23 @@ public class ElasticityDashboard implements Dashboard {
 		header.title = "Elasticity";
 		header.description = "Die Wirkung von Preisänderung auf Berliner Verkehrsmittelwahlverhalten";
 
-		layout.row("Third")
+		layout.row("first")
 			.el(Bar.class, (viz, data) -> {
-				viz.title = "Modeshare by mode";
+				viz.title = "Elasticity by mode";
 				viz.dataset = data.compute(ElasticityAnalysis.class, "elasticity_stats.csv",
 					"--modes-filter", "car,ride");
 				viz.x = "mode";
 				viz.columns = List.of("elasticity");
-			});
+			})
+			
+			.el(Table.class, (viz, data) -> {
+			viz.title = "Elasticity Table";
+			viz.description = "Details regarding Elasticity";
+			viz.showAllRows = true;
+			viz.dataset = data.compute(ElasticityAnalysis.class, "elasticity_stats.csv",
+				"--modes-filter", "car,ride");
+			viz.width = 1d;
+		});
 
 	}
 
