@@ -87,6 +87,8 @@ public class ElasticityAnalysis implements MATSimAppCommand {
 	@Override
 	public Integer call() throws Exception {
 
+		// TODO use constants for frequently used strings
+
 		config = ConfigUtils.loadConfig(input.getPath("config.xml"));
 		betaMoney = config.scoring().getScoringParameters(null).getMarginalUtilityOfMoney();
 
@@ -110,10 +112,12 @@ public class ElasticityAnalysis implements MATSimAppCommand {
 		Table tripsFiltered = trips.selectColumns(
 			"person", "trip_number","main_mode", "longest_distance_mode", "traveled_distance");
 
+		// I think this silently drops all non-person-agents, but I#m not sure. Might make one of my other comments obsolete?!
 		tableCurated = tripsFiltered.joinOn("person").inner(personsFiltered);
 
 		DoubleColumn income = tableCurated.doubleColumn("income");
 
+		// this is the median income of all trips, not of all persons!
 		double median = income.median();
 		log.info(
 			"median income: " + median
@@ -153,6 +157,7 @@ public class ElasticityAnalysis implements MATSimAppCommand {
 		/**
 		 * THE SWITCH FOR NOW "income" or "age"
 		 * */
+		// ???why not use the CLI-param?
 		attribute = "income";
 		// some if statement here depending on the presence of argument
 		// if groups filter given
@@ -188,6 +193,9 @@ public class ElasticityAnalysis implements MATSimAppCommand {
 //		log.info("Elasticity succesfully calculated");
 //		writeElasticityStats();
 
+		// all these methods write stuff into global fields and use data from them.
+		// It would be better from my perspective if the methods returns what it calculates
+		// and get everything it needs per argument (except maybe the fields set via CLI-params)
 		calcAvgDistPerMode(modes);
 		calcMonCostPerTripByMode(modes);
 		calcNTripsByAttribute(INCOME_GROUP, modes);
@@ -196,6 +204,7 @@ public class ElasticityAnalysis implements MATSimAppCommand {
 		calcElasticityByAttribute(INCOME_GROUP, modes);
 		writeElasticityStatsByAttribute();
 
+		// TODO remove hardcoded file-paths
 		tableCurated.write().csv(
 			CsvWriteOptions.builder("/home/teddymustafa/Desktop/FG-VSP/elasticity/groupby_attributes.csv")
 				.separator(';')
@@ -224,10 +233,13 @@ public class ElasticityAnalysis implements MATSimAppCommand {
 						)
 					)
 					.rowCount();
+					// TODO group contains no mode, i.e. only the last mode survives
 					nTripsIncome.put(group, n);
 					log.info("nTrips for "+ group +" = "+ n);
 				}
 			}
+			// TODO use elseif-block here and an else-block later that fails an unknown attribute is used?!
+			// why no mode here?!
 			if(attribute.equals("age")){int n = tableCurated.where(
 					subpopulation.isEqualTo(PERSON)
 						.and(tableCurated.stringColumn("age").isEqualTo(group)))
@@ -236,18 +248,22 @@ public class ElasticityAnalysis implements MATSimAppCommand {
 				log.info("nTrips for "+ group +" = "+ n);
 			}
 		}
+		// TODO why only log income here?
 		log.info("nTripsIncome: {}", nTripsIncome);
+		// it is actually not so nice that this methods contains multiple filters which fill different fields
 	}
 
 	private void calcAttributeShare(Set<String> groups) {
 		for(String group: groups){
 			if(attribute.equals("income")){
+				// TODO nTripsIncome is fitlered to subpopulation person, tableCurated contains all trips of all subpopulations?!
 				int tripsOfgroup = nTripsIncome.getInt(group);
 				double share = (double) tripsOfgroup / tableCurated.rowCount();
 				incomeShare.put(group, share);
 				log.info("groupShare for "+ group +" = "+ share);
 			}
 			if(attribute.equals("age")){int tripsOfgroup = nTripsAge.getInt(group);
+				// TODO nTripsAge is fitlered to subpopulation person, tableCurated contains all trips of all subpopulations?!
 				double share = (double) tripsOfgroup / tableCurated.rowCount();
 				ageShare.put(group, share);
 				log.info("groupShare for "+ group +" = "+ share);
@@ -409,6 +425,7 @@ public class ElasticityAnalysis implements MATSimAppCommand {
 	}
 
 	/**
+	 * TODO this method is never called, i.e. elasticity_stats.csv is never written but used by the dashboard?!
 	 * write elasticity_stats.csv
 	 */
 	private void writeElasticityStats() throws IOException{
@@ -430,6 +447,7 @@ public class ElasticityAnalysis implements MATSimAppCommand {
 	}
 
 	private void writeElasticityStatsByAttribute() throws IOException{
+		// TODO do not use hardcoded paths!
 		try (BufferedWriter writer = IOUtils.getBufferedWriter("/home/teddymustafa/Desktop/FG-VSP/elasticity/analysis/elasticity/elasticity_stats_income.csv")) {
 			if(attribute.equals("income")){
 				writer.write("#Total persons: " + tableCurated.stringColumn(PERSON).countUnique());
@@ -440,6 +458,8 @@ public class ElasticityAnalysis implements MATSimAppCommand {
 				writer.newLine();
 				for (String group : INCOME_GROUP) {
 					for (String mode : modes) {
+						// wouldn't this result in the value for mode a and mode b?
+						// 4th column is modeshare but uses incomeShare?
 						writer.write(group + ";" + mode + ";" + nTripsIncome.getInt(group) + ";" + incomeShare.getDouble(group) + ";" + avgDistanceIncome.getDouble(group) + ";" + elasticityIncome.getDouble(group));
 						writer.newLine();
 					}
