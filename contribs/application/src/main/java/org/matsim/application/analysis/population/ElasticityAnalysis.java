@@ -1,9 +1,8 @@
 package org.matsim.application.analysis.population;
 
-import it.unimi.dsi.fastutil.objects.Object2DoubleMap;
-import it.unimi.dsi.fastutil.objects.Object2DoubleOpenHashMap;
-import it.unimi.dsi.fastutil.objects.Object2IntMap;
-import it.unimi.dsi.fastutil.objects.Object2IntOpenHashMap;
+import it.unimi.dsi.fastutil.objects.*;
+import org.apache.commons.csv.CSVFormat;
+import org.apache.commons.csv.CSVPrinter;
 import org.matsim.application.CommandSpec;
 import org.matsim.application.MATSimAppCommand;
 import org.matsim.application.options.CsvOptions;
@@ -13,6 +12,7 @@ import org.matsim.core.config.Config;
 import org.matsim.core.config.ConfigUtils;
 import java.io.*;
 import java.math.BigDecimal;
+import java.nio.file.Files;
 import java.util.*;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -26,8 +26,9 @@ import tech.tablesaw.selection.Selection;
 
 @CommandLine.Command (
 	name = "elasticity",
-	description = "Generates statistics for elasticity."
+	description = "Generates statistics for Price Elasticity of Demand."
 )
+
 @CommandSpec(
 	requires = {"trips.csv", "config.xml", "persons.csv"},
 	produces = {"elasticity_stats.csv", "elasticity_stats_income.csv"}
@@ -36,6 +37,8 @@ public class ElasticityAnalysis implements MATSimAppCommand {
 
 	// Creating Log
 	private static final Logger log = LogManager.getLogger(ElasticityAnalysis.class);
+
+	// Static Final Variables
 	private static final String MAIN_MODE = "main_mode";
 	private static final String PERSON = "person";
 	private static final String TRIP_NUMBER = "trip_number";
@@ -45,12 +48,16 @@ public class ElasticityAnalysis implements MATSimAppCommand {
 	private static final String SUBPOPULATION = "subpopulation";
 	private static final Set<String> INCOME_GROUP = Set.of("low", "middle", "high");
 
+	// Setting the input file
 	@CommandLine.Mixin
 	private final InputOptions input = InputOptions.ofCommand(ElasticityAnalysis.class);
+	// Setting the output file
 	@CommandLine.Mixin
 	private final OutputOptions output = OutputOptions.ofCommand(ElasticityAnalysis.class);
+	// For Filtering Modes
 	@CommandLine.Option(names = "--modes-filter", split = ",", description = "Define which modes should be included into elasticity analysis.")
-	private Set<String> modes;
+	private Set<String> modes = Set.of("car", "ride");
+	// For Filtering Attributes, such as Age and Income
 	@CommandLine.Option(names = "--attribute-filter", description = "Define which groups should be included into elasticity analysis.")
 	private String attribute;
 
@@ -60,11 +67,12 @@ public class ElasticityAnalysis implements MATSimAppCommand {
 //	private final Set<String> modes = Set.of("car","ride");
 //	private final String groupBy = null;
 
+	// Table to store the calculated numbers
 	private static Table tableCurated;
 	private Config config;
 	private double betaMoney;
 
-	// RESULTS, NEEDED FOR OUTPUT
+	// RESULTS, NEEDED FOR OUTPUT, Factors and Variables of Preis Elasticity of Demand
 	private final Object2IntMap<String> nPersons = new Object2IntOpenHashMap<>();
 	private final Object2IntMap<String> nTrips = new Object2IntOpenHashMap<>();
 	private final Object2IntMap<String> nTripsIncome = new Object2IntOpenHashMap<>();
@@ -188,21 +196,23 @@ public class ElasticityAnalysis implements MATSimAppCommand {
 //		log.info("Elasticity succesfully calculated");
 //		writeElasticityStats();
 
-		calcAvgDistPerMode(modes);
-		calcMonCostPerTripByMode(modes);
-		calcNTripsByAttribute(INCOME_GROUP, modes);
-		calcAttributeShare(INCOME_GROUP);
-		calcAvgDistByAttribute(INCOME_GROUP);
-		calcElasticityByAttribute(INCOME_GROUP, modes);
-		writeElasticityStatsByAttribute();
+//		calcAvgDistPerMode(modes);
+//		calcMonCostPerTripByMode(modes);
+//		calcNTripsByAttribute(INCOME_GROUP, modes);
+//		calcAttributeShare(INCOME_GROUP);
+//		calcAvgDistByAttribute(INCOME_GROUP);
+//		calcElasticityByAttribute(INCOME_GROUP, modes);
+//		writeElasticityStatsByAttribute();
 
-		tableCurated.write().csv(
-			CsvWriteOptions.builder("/home/teddymustafa/Desktop/FG-VSP/elasticity/groupby_attributes.csv")
-				.separator(';')
-				.header(true)
-				.build());
+		writeElasticityStatsPerMode(tableCurated);
 
-		System.out.printf("Wrote %d rows -> %s%n", tableCurated.rowCount(), "/home/teddymustafa/Desktop/FG-VSP/elasticity/groupby_attributes.csv");
+//		tableCurated.write().csv(
+//			CsvWriteOptions.builder("/home/teddymustafa/Desktop/FG-VSP/elasticity/groupby_attributes.csv")
+//				.separator(';')
+//				.header(true)
+//				.build());
+
+//		System.out.printf("Wrote %d rows -> %s%n", tableCurated.rowCount(), "/home/teddymustafa/Desktop/FG-VSP/elasticity/groupby_attributes.csv");
 
 
 
@@ -409,25 +419,126 @@ public class ElasticityAnalysis implements MATSimAppCommand {
 	}
 
 	/**
-	 * write elasticity_stats.csv
+	 * writes elasticity_stats.csv
 	 */
-	private void writeElasticityStats() throws IOException{
-		try (BufferedWriter writer = IOUtils.getBufferedWriter(output.getPath("elasticity_stats.csv").toString())){
+	private void writeElasticityStats(Table trips) throws IOException{
+//		try (BufferedWriter writer = IOUtils.getBufferedWriter(output.getPath("elasticity_stats.csv").toString())){
+//
+//			writer.write("#Total persons: " + tableCurated.stringColumn(PERSON).countUnique());
+//			writer.newLine();
+//			writer.write("#Total trips: " + tableCurated.rowCount());
+//			writer.newLine();
+//			writer.write("mode;nPersons;nTrips;modeshare;monetarycost;avg_distance;elasticity");
+//			writer.newLine();
+//			for (String mode:modes){
+//
+//				writer.write(mode + ";" + nPersons.getInt(mode) + ";" + nTrips.getInt(mode) + ";" + modeShare.getDouble(mode) + ";" + monetaryCost.getDouble(mode) + ";" + avgDistance.getDouble(mode)+ ";" +elasticity.getDouble(mode));
+//				writer.newLine();
+//			}
+//		}
 
-			writer.write("#Total persons: " + tableCurated.stringColumn(PERSON).countUnique());
-			writer.newLine();
-			writer.write("#Total trips: " + tableCurated.rowCount());
-			writer.newLine();
-			writer.write("mode;nPersons;nTrips;modeshare;monetarycost;avg_distance;elasticity");
-			writer.newLine();
-			for (String mode:modes){
-
-				writer.write(mode + ";" + nPersons.getInt(mode) + ";" + nTrips.getInt(mode) + ";" + modeShare.getDouble(mode) + ";" + monetaryCost.getDouble(mode) + ";" + avgDistance.getDouble(mode)+ ";" +elasticity.getDouble(mode));
-				writer.newLine();
-			}
-		}
 		log.info("write complete!");
 	}
+
+	private void writeElasticityStatsPerMode (Table trips) throws IOException{
+		Object2IntMap<String> nPersons = new Object2IntOpenHashMap<>();
+		Object2IntMap<String> nTrips = new Object2IntOpenHashMap<>();
+		Object2DoubleMap<String> modeShare = new Object2DoubleOpenHashMap<>();
+		Object2DoubleMap<String> avgDistance = new Object2DoubleOpenHashMap<>();
+		Object2DoubleMap<String> monetaryCost = new Object2DoubleOpenHashMap<>();
+
+		StringColumn subpopulation = tableCurated.stringColumn(SUBPOPULATION);
+		StringColumn mainMode = tableCurated.stringColumn(MAIN_MODE);
+
+		try (CSVPrinter printer = new CSVPrinter(Files.newBufferedWriter(output.getPath("elasticity_stats.csv")),
+			CSVFormat.DEFAULT)) {
+			printer.print("Info");
+			for(String m : modes){
+				printer.print(m);
+			}
+
+			printer.println();
+
+			printer.print("nTrips");
+
+			// nTrips per Mode
+			for (String mode : modes) {
+
+				int n = tableCurated.where(
+					subpopulation.isEqualTo(PERSON)
+						.and(mainMode.isEqualTo(mode))
+				).rowCount();
+				nTrips.put(mode, n);
+				printer.print(n);
+			}
+
+			printer.println();
+
+			printer.print("Monetary Cost");
+
+			for (String mode: modes){
+				double mdr = config.scoring()
+					.getScoringParameters(null)
+					.getModes()
+					.get(mode)
+					.getMonetaryDistanceRate();
+				printer.print(mdr);
+			}
+
+			printer.println();
+
+			printer.print("AvgDistPerMode");
+
+			for(String mode : modes){
+				double avgDist = tableCurated.doubleColumn(TRAVELED_DISTANCE)
+					.where(tableCurated.stringColumn(MAIN_MODE).isEqualTo(mode))
+					.mean();
+				avgDistance.put(mode, avgDist);
+				printer.print(avgDist);
+			}
+
+			printer.println();
+
+			printer.print("monetary cost per trip per mode");
+			for(String mode : modes){
+				double price = getMonDistRateByMode(mode) * avgDistance.getDouble(mode);
+				monetaryCost.put(mode, price);
+				printer.print(price);
+			}
+
+			printer.println();
+
+			printer.print("modeshare");
+			for(String mode: modes ){
+				int tripsOfMode = nTrips.getInt(mode);
+				double share = (double) tripsOfMode / tableCurated.rowCount();
+				printer.print(share);
+			}
+
+			printer.println();
+
+			printer.print("Elasticity");
+			for (String mode: modes){
+
+				double e = -betaMoney * (monetaryCost.getDouble(mode) * (1-modeShare.getDouble(mode)));
+				log.info("elasticity for {} = {}", mode, e);
+				printer.print(e);
+
+			}
+
+		}
+	}
+
+//	private void analyseAndWriteTripStatsPerGroup(String group, Map<String, Object2IntMap<String>> nBySubpopulationGroup,
+//												  Map<String, Object2LongMap<String>> averageDistBySubpopulationGroup,
+//												  Map<String, Object2LongMap<String>> modeShareBySubpopulationGroup) throws IOException{
+//		try(CSVPrinter printer = new CSVPrinter(Files.newBufferedWriter(output.getPath("trip_stats_%s.csv", group)), CSVFormat.DEFAULT)){
+//			printer.print("Info");
+//			for (String m: modes){
+//				if(Objects.equals(group, TripAnalysis.ModelType.COMPLETE_MODEL.id));
+//			}
+//		}
+//	}
 
 	private void writeElasticityStatsByAttribute() throws IOException{
 		try (BufferedWriter writer = IOUtils.getBufferedWriter("/home/teddymustafa/Desktop/FG-VSP/elasticity/analysis/elasticity/elasticity_stats_income.csv")) {
