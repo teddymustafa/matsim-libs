@@ -11,7 +11,6 @@ import org.matsim.application.options.OutputOptions;
 import org.matsim.core.config.Config;
 import org.matsim.core.config.ConfigUtils;
 import java.io.*;
-import java.math.BigDecimal;
 import java.nio.file.Files;
 import java.util.*;
 import org.apache.logging.log4j.LogManager;
@@ -20,8 +19,6 @@ import org.matsim.core.utils.io.IOUtils;
 import picocli.CommandLine;
 import tech.tablesaw.api.*;
 import tech.tablesaw.io.csv.CsvReadOptions;
-import tech.tablesaw.io.csv.CsvWriteOptions;
-import tech.tablesaw.selection.Selection;
 
 
 @CommandLine.Command (
@@ -46,7 +43,6 @@ public class ElasticityAnalysis implements MATSimAppCommand {
 	private static final String AGE = "age";
 	private static final String INCOME = "income";
 	private static final String SUBPOPULATION = "subpopulation";
-	private static final Set<String> INCOME_GROUP = Set.of("low", "middle", "high");
 
 	// Setting the input file
 	@CommandLine.Mixin
@@ -59,7 +55,7 @@ public class ElasticityAnalysis implements MATSimAppCommand {
 	private Set<String> modes = Set.of("car", "ride");
 	// For Filtering Attributes, such as Age and Income
 	@CommandLine.Option(names = "--attribute-filter", description = "Define which groups should be included into elasticity analysis.")
-	private String attribute;
+	private String attribute = "income";
 
 //	// HARDCODING FOR TESTING PURPOSE
 //	private static final String TRIPS_PATH = "/home/teddymustafa/Desktop/FG-VSP/elasticity/berlin-v7.1-1pct.output_trips.csv.gz";
@@ -73,25 +69,7 @@ public class ElasticityAnalysis implements MATSimAppCommand {
 	private double betaMoney;
 
 	// RESULTS, NEEDED FOR OUTPUT, Factors and Variables of Preis Elasticity of Demand
-	private final Object2IntMap<String> nPersons = new Object2IntOpenHashMap<>();
-	private final Object2IntMap<String> nTrips = new Object2IntOpenHashMap<>();
-	private final Object2IntMap<String> nTripsIncome = new Object2IntOpenHashMap<>();
-	private final Object2IntMap<String> nTripsAge = new Object2IntOpenHashMap<>();
-	private final Object2DoubleMap<String> modeShare = new Object2DoubleOpenHashMap<>();
-	public static record ModeAttributeKey(String mode, String incomeGroup){}
-	private final Object2DoubleMap<String> modeShareIncome = new Object2DoubleOpenHashMap<>();
-	private final Object2DoubleMap<String> modeShareAge = new Object2DoubleOpenHashMap<>();
-	private final Object2DoubleMap<String> incomeShare = new Object2DoubleOpenHashMap<>();
-	private final Object2DoubleMap<String> ageShare = new Object2DoubleOpenHashMap<>();
-	private final Object2DoubleMap<String> avgDistance = new Object2DoubleOpenHashMap<>();
-	private final Object2DoubleMap<String> avgDistanceIncome = new Object2DoubleOpenHashMap<>();
-	private final Object2DoubleMap<String> avgDistanceAge = new Object2DoubleOpenHashMap<>();
-	private final Object2DoubleMap<String> monetaryCost = new Object2DoubleOpenHashMap<>();
-	private final Object2DoubleMap<String> monetaryCostIncome = new Object2DoubleOpenHashMap<>();
-	private final Object2DoubleMap<String> monetaryCostAge = new Object2DoubleOpenHashMap<>();
-	private final Object2DoubleMap<String> elasticity = new Object2DoubleOpenHashMap<>();
-	private final Object2DoubleMap<String> elasticityIncome = new Object2DoubleOpenHashMap<>();
-	private final Object2DoubleMap<String> elasticityAge = new Object2DoubleOpenHashMap<>();
+
 
 	public static void main(String[] args) throws Exception {
 //		new ElasticityAnalysis().call(); | FOR HARDCODING
@@ -131,7 +109,7 @@ public class ElasticityAnalysis implements MATSimAppCommand {
 
 
 		writeElasticityStatsPerMode(trips);
-		writeElasticityStatsPerGroup("income",trips);
+		writeElasticityStatsPerGroup(attribute,trips);
 		writeElasticityStatsPerGroup("age",trips);
 
 
@@ -278,6 +256,11 @@ public class ElasticityAnalysis implements MATSimAppCommand {
 			Table tripsGroup = trips.where(subpopulation.isEqualTo(PERSON));
 
 			if(attribute == "income"){
+				final Object2IntMap<String> nTripsIncome = new Object2IntOpenHashMap<>();
+				final Object2DoubleMap<String> modeShareIncome = new Object2DoubleOpenHashMap<>();
+				final Object2DoubleMap<String> avgDistanceIncome = new Object2DoubleOpenHashMap<>();
+				final Object2DoubleMap<String> monetaryCostIncome = new Object2DoubleOpenHashMap<>();
+				final Object2DoubleMap<String> elasticityIncome = new Object2DoubleOpenHashMap<>();
 				Set<String> econstat = tripsGroup.stringColumn("economic_status").asSet();
 				try(CSVPrinter printer = new CSVPrinter(Files.newBufferedWriter(output.getPath("elasticity_per_income.csv")), CSVFormat.DEFAULT)){
 
@@ -438,6 +421,12 @@ public class ElasticityAnalysis implements MATSimAppCommand {
 			}
 
 				if(attribute == "age"){
+
+					final Object2IntMap<String> nTripsAge = new Object2IntOpenHashMap<>();
+					final Object2DoubleMap<String> modeShareAge = new Object2DoubleOpenHashMap<>();
+					final Object2DoubleMap<String> avgDistanceAge = new Object2DoubleOpenHashMap<>();
+					final Object2DoubleMap<String> monetaryCostAge = new Object2DoubleOpenHashMap<>();
+					final Object2DoubleMap<String> elasticityAge = new Object2DoubleOpenHashMap<>();
 					Set<String> employment = tripsGroup.stringColumn("employment").asSet();
 					try(CSVPrinter printer = new CSVPrinter(Files.newBufferedWriter(output.getPath("elasticity_per_age.csv")), CSVFormat.DEFAULT)){
 						printer.print("mode");
