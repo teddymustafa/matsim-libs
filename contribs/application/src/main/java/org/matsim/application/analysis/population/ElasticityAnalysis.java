@@ -75,14 +75,15 @@ public class ElasticityAnalysis implements MATSimAppCommand {
 	// RESULTS, NEEDED FOR OUTPUT, Factors and Variables of Preis Elasticity of Demand
 	private final Object2IntMap<String> nPersons = new Object2IntOpenHashMap<>();
 	private final Object2IntMap<String> nTrips = new Object2IntOpenHashMap<>();
-	private final Object2IntMap<String> nTripsIncome = new Object2IntOpenHashMap<>();
+	private final Object2IntMap<ModeAttributeKey> nTripsIncome = new Object2IntOpenHashMap<>();
 	private final Object2IntMap<String> nTripsAge = new Object2IntOpenHashMap<>();
 	private final Object2DoubleMap<String> modeShare = new Object2DoubleOpenHashMap<>();
+	public static record ModeAttributeKey(String mode, String incomeGroup){}
 	private final Object2DoubleMap<String> modeShareIncome = new Object2DoubleOpenHashMap<>();
 	private final Object2DoubleMap<String> incomeShare = new Object2DoubleOpenHashMap<>();
 	private final Object2DoubleMap<String> ageShare = new Object2DoubleOpenHashMap<>();
 	private final Object2DoubleMap<String> avgDistance = new Object2DoubleOpenHashMap<>();
-	private final Object2DoubleMap<String> avgDistanceIncome = new Object2DoubleOpenHashMap<>();
+	private final Object2DoubleMap<ModeAttributeKey> avgDistanceIncome = new Object2DoubleOpenHashMap<>();
 	private final Object2DoubleMap<String> avgDistanceAge = new Object2DoubleOpenHashMap<>();
 	private final Object2DoubleMap<String> monetaryCost = new Object2DoubleOpenHashMap<>();
 	private final Object2DoubleMap<String> monetaryCostIncome = new Object2DoubleOpenHashMap<>();
@@ -124,54 +125,12 @@ public class ElasticityAnalysis implements MATSimAppCommand {
 
 		System.out.println(trips);
 
-//		DoubleColumn income = trips.doubleColumn("income");
-//
-//		double median = income.median();
-//		log.info(
-//			"median income: " + median
-//		);
-//		double lowCut  = 0.6 * median;
-//		log.info(
-//			"lowcut: " + lowCut
-//		);
-//		double highCut = 1.5 * median;
-//		log.info(
-//			"highcut: " + highCut
-//		);
-//
-//		StringColumn bracket = StringColumn.create("income_bracket", income.size());
-//
-//		for (int i = 0; i < income.size(); i++) {
-//			if (income.isMissing(i)) {
-//				bracket.setMissing(i);
-//			} else {
-//				double value = income.getDouble(i);
-//				if (value < lowCut) {
-//					bracket.set(i, "low");
-//				}
-//				//if (!(value < lowCut) && value < highCut) {   // ← now the ! is literal
-//				//    bracket.set(i, "middle");
-//				//}
-//				else if (value < highCut) {
-//					bracket.set(i, "middle");
-//				} else {
-//					bracket.set(i, "high");
-//				}
-//			}
-//		}
-//
-//		trips.addColumns(bracket);
 
-		/**
-		 * THE SWITCH FOR NOW "income" or "age"
-		 * */
-		attribute = "income";
 
 		writeElasticityStatsPerMode(trips);
 		writeElasticityStatsPerGroup("income",trips);
 //		writeElasticityStatsPerGroup("age",trips);
 
-//		System.out.printf("Wrote %d rows -> %s%n", trips.rowCount(), "/home/teddymustafa/Desktop/FG-VSP/elasticity/groupby_attributes.csv");
 
 		return 0;
 	}
@@ -336,7 +295,7 @@ public class ElasticityAnalysis implements MATSimAppCommand {
 								.and(econStatus.isEqualTo(e))
 						).rowCount();
 						log.info("nTrips for {} = {}", e, n);
-						nTripsIncome.put(e, n);
+						nTripsIncome.put(new ModeAttributeKey("car", e), n);
 						printer.print(n);
 					}
 
@@ -354,7 +313,7 @@ public class ElasticityAnalysis implements MATSimAppCommand {
 							)
 							.mean();
 						log.info("avgDist for {} = {}", e, avgDist);
-						avgDistanceIncome.put(e, avgDist);
+						avgDistanceIncome.put(new ModeAttributeKey("car", e), avgDist);
 						printer.print(avgDist);
 					}
 
