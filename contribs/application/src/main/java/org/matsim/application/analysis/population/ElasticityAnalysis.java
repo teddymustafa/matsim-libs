@@ -15,6 +15,7 @@ import org.matsim.core.config.ConfigUtils;
 import java.io.*;
 import java.nio.file.Files;
 import java.util.*;
+import java.util.stream.Collectors;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -64,7 +65,7 @@ public class ElasticityAnalysis implements MATSimAppCommand {
 	private final List<String> modes = List.of("car", "ride");
 	// For Filtering Attributes, such as Age and Income
 	@CommandLine.Option(names = "--attribute-filter", description = "Define which groups should be included into elasticity analysis.")
-	private final List<String> attribute = List.of("age");
+	private final List<String> attribute = List.of("age", "income");
 	@CommandLine.Option(names = "--dist-groups", split = ",", description = "List of distances for binning", defaultValue = "0,1000,2000,5000,10000,20000")
 	private List<Long> distGroups;
 	@CommandLine.Option(names = "--input-ref-data", description = "Optional path to reference data", required = false)
@@ -378,7 +379,14 @@ public class ElasticityAnalysis implements MATSimAppCommand {
 				final Object2DoubleMap<String> modeShareIncome = new Object2DoubleOpenHashMap<>();
 				final Object2DoubleMap<String> avgDistanceIncome = new Object2DoubleOpenHashMap<>();
 				final Object2DoubleMap<String> monetaryCostIncome = new Object2DoubleOpenHashMap<>();
-				Set<String> income = tripsGroup.stringColumn("incomeGroup").asSet();
+				List<String> income = tripsGroup.stringColumn("incomeGroup")
+					.asSet()
+					.stream()
+					.sorted(Comparator.comparingInt(label -> {
+						java.util.regex.Matcher m = java.util.regex.Pattern.compile("\\d+").matcher(label);
+						return m.find() ? Integer.parseInt(m.group()) : Integer.MAX_VALUE;
+					}))
+					.toList();
 				try(CSVPrinter printer = new CSVPrinter(Files.newBufferedWriter(output.getPath("elasticity_per_income.csv")), CSVFormat.DEFAULT)){
 
 					printer.print("mode");
@@ -479,7 +487,12 @@ public class ElasticityAnalysis implements MATSimAppCommand {
 					final Object2DoubleMap<String> modeShareAge = new Object2DoubleOpenHashMap<>();
 					final Object2DoubleMap<String> avgDistanceAge = new Object2DoubleOpenHashMap<>();
 					final Object2DoubleMap<String> monetaryCostAge = new Object2DoubleOpenHashMap<>();
-					Set<String> age = tripsGroup.stringColumn("ageGroup").asSet();
+					List<String> age = tripsGroup.stringColumn("ageGroup").asSet().stream()
+						.sorted(Comparator.comparingInt(label -> {
+							java.util.regex.Matcher m = java.util.regex.Pattern.compile("\\d+").matcher(label);
+							return m.find() ? Integer.parseInt(m.group()) : Integer.MAX_VALUE;
+						}))
+						.toList();;
 					try(CSVPrinter printer = new CSVPrinter(Files.newBufferedWriter(output.getPath("elasticity_per_age.csv")), CSVFormat.DEFAULT)){
 						printer.print("mode");
 						printer.print("Info");
