@@ -56,6 +56,8 @@ public class ElasticityAnalysis implements MATSimAppCommand {
 	@CommandLine.Mixin
 	private final OutputOptions output = OutputOptions.ofCommand(ElasticityAnalysis.class);
 	// For Filtering Modes
+
+	// This is never used?!
 	@CommandLine.Option(names = "--modes-filter", split = ",", description = "Define which modes should be included into elasticity analysis.")
 	private List<String> modes = List.of("car", "ride");
 	// For Filtering Attributes, such as Age and Income
@@ -73,7 +75,8 @@ public class ElasticityAnalysis implements MATSimAppCommand {
 //	private final String groupBy = null;
 
 	// Table to store the calculated numbers
-	private static Table trips;
+	// this is never used //DR20260917
+//	private static Table trips;
 	private Config config;
 	private double betaMoney;
 
@@ -143,6 +146,7 @@ public class ElasticityAnalysis implements MATSimAppCommand {
 
 		writeElasticityStatsPerMode(trips);
 		writeElasticityStatsPerGroup(attribute,trips);
+		// why is this hardcoded?
 		writeElasticityStatsPerGroup("age",trips);
 
 
@@ -288,6 +292,7 @@ public class ElasticityAnalysis implements MATSimAppCommand {
 			StringColumn employStatus = trips.stringColumn("employment");
 			Table tripsGroup = trips.where(subpopulation.isEqualTo(PERSON));
 
+			// do not use == but .equals() to compare strings
 			if(attribute == "income"){
 				final Object2IntMap<String> nTripsIncome = new Object2IntOpenHashMap<>();
 				final Object2DoubleMap<String> modeShareIncome = new Object2DoubleOpenHashMap<>();
@@ -453,6 +458,11 @@ public class ElasticityAnalysis implements MATSimAppCommand {
 				}
 			}
 
+			// a few things:
+			// - check for attribute age here, but use employment for grouping ?! This is misleading
+			// - this is actually almost the same code as for income. Can we not reuse the income-part and make it more generic
+			// - also the code for  car- and ride- has a lot of duplication
+			// - income- and ageblock are very long and thus hard to read, maybe we could extract some code to methods
 				if(attribute == "age"){
 
 					final Object2IntMap<String> nTripsAge = new Object2IntOpenHashMap<>();
