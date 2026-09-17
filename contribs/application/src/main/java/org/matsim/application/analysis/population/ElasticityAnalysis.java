@@ -5,6 +5,7 @@ import org.apache.commons.csv.CSVFormat;
 import org.apache.commons.csv.CSVPrinter;
 import org.matsim.application.CommandSpec;
 import org.matsim.application.MATSimAppCommand;
+import org.matsim.application.analysis.AnalysisUtils;
 import org.matsim.application.options.CsvOptions;
 import org.matsim.application.options.InputOptions;
 import org.matsim.application.options.OutputOptions;
@@ -13,6 +14,8 @@ import org.matsim.core.config.ConfigUtils;
 import java.io.*;
 import java.nio.file.Files;
 import java.util.*;
+import java.util.stream.Collectors;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.matsim.core.utils.io.IOUtils;
@@ -28,7 +31,7 @@ import tech.tablesaw.io.csv.CsvReadOptions;
 
 @CommandSpec(
 	requires = {"trips.csv", "config.xml", "persons.csv"},
-	produces = {"elasticity_stats.csv", "elasticity_per_income.csv","elasticity_per_age.csv"}
+	produces = {"elasticity_stats.csv", "elasticity_per_income.csv","elasticity_per_age.csv", "elasticity_per_%s.csv", "mode_share_per_%s.csv"}
 )
 public class ElasticityAnalysis implements MATSimAppCommand {
 
@@ -44,6 +47,8 @@ public class ElasticityAnalysis implements MATSimAppCommand {
 	private static final String INCOME = "income";
 	private static final String SUBPOPULATION = "subpopulation";
 
+	private Map<String, List<String>> groupsOfSubpopulationsForPersonAnalysis = new HashMap<>();
+
 	// Setting the input file
 	@CommandLine.Mixin
 	private final InputOptions input = InputOptions.ofCommand(ElasticityAnalysis.class);
@@ -52,10 +57,14 @@ public class ElasticityAnalysis implements MATSimAppCommand {
 	private final OutputOptions output = OutputOptions.ofCommand(ElasticityAnalysis.class);
 	// For Filtering Modes
 	@CommandLine.Option(names = "--modes-filter", split = ",", description = "Define which modes should be included into elasticity analysis.")
-	private Set<String> modes = Set.of("car", "ride");
+	private List<String> modes = List.of("car", "ride");
 	// For Filtering Attributes, such as Age and Income
 	@CommandLine.Option(names = "--attribute-filter", description = "Define which groups should be included into elasticity analysis.")
-	private String attribute = "income";
+	private List<String> attribute = List.of("age","income");
+	@CommandLine.Option(names = "--dist-groups", split = ",", description = "List of distances for binning", defaultValue = "0,1000,2000,5000,10000,20000")
+	private List<Long> distGroups;
+	@CommandLine.Option(names = "--input-ref-data", description = "Optional path to reference data", required = false)
+	private String refData;
 
 //	// HARDCODING FOR TESTING PURPOSE
 //	private static final String TRIPS_PATH = "/home/teddymustafa/Desktop/FG-VSP/elasticity/berlin-v7.1-1pct.output_trips.csv.gz";
@@ -102,11 +111,35 @@ public class ElasticityAnalysis implements MATSimAppCommand {
 		Table tripsFiltered = trips.selectColumns(
 			"person", "trip_number","main_mode", "longest_distance_mode", "traveled_distance");
 
+		List<String> distanceLabels = AnalysisUtils.createGroupLabels(distGroups);
+
+		StringColumn dist_group = trips.longColumn("traveled_distance")
+			.map(dist -> AnalysisUtils.getLabelForValue(dist, distGroups, distanceLabels), ColumnType.STRING::create).setName("dist_group");
+
+		trips.addColumns(dist_group);
+
 		trips = tripsFiltered.joinOn("person").inner(personsFiltered);
 
 		System.out.println(trips);
 
+		TripBySociodemographicGroupsAnalysis sociodemographicGroups = null;
+		if (refData != null) {
+			sociodemographicGroups = new TripBySociodemographicGroupsAnalysis(refData);
+			sociodemographicGroups.groupPersons(persons);
+		}
 
+		if (sociodemographicGroups != null) {
+			// filters for all subpopulations that are used for person analysis
+			if (!groupsOfSubpopulationsForPersonAnalysis.isEmpty()) {
+				Table filteredForPersons = trips.where(
+					trips.stringColumn("subpopulation").isIn(groupsOfSubpopulationsForPersonAnalysis.values().stream()
+						.flatMap(Collection::stream)
+						.collect(Collectors.toSet())));
+				sociodemographicGroups.writeModeShare(filteredForPersons, distanceLabels, modes, (g) -> output.getPath("mode_share_per_%s.csv", g));
+			}
+			else
+				sociodemographicGroups.writeModeShare(trips, distanceLabels, modes, (g) -> output.getPath("mode_share_per_%s.csv", g));
+		}
 
 		writeElasticityStatsPerMode(trips);
 		writeElasticityStatsPerGroup(attribute,trips);
