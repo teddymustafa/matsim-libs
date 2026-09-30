@@ -126,7 +126,7 @@ final class CreateSingleSimWrapperDashboard implements MATSimAppCommand {
 					sw.addDashboard(new TeddysDashboard(Set.copyOf(config.qsim().getMainModes())));
 				}
 				case elasticityDashboard -> {
-					sw.addDashboard(new ElasticityDashboard(Set.copyOf(config.qsim().getMainModes())));
+					sw.addDashboard(new ElasticityDashboard());
 				}
 				default -> throw new IllegalArgumentException("unknown dashboard type: " + dashboardType);
 			}
