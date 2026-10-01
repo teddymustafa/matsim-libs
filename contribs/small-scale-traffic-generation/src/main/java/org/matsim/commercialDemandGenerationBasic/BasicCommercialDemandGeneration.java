@@ -482,6 +482,7 @@ public class BasicCommercialDemandGeneration implements MATSimAppCommand {
 		sw.getConfigGroup().setDefaultDashboards(SimWrapperConfigGroup.DefaultDashboardsMode.disabled);
 		sw.addDashboard(new OverviewDashboard(Set.copyOf(scenario.getConfig().qsim().getMainModes())));
 		sw.addDashboard(new CarrierDashboard("(*.)?output_carriers_withPlans.xml.gz"));
+		// TODO why is this here?
 		sw.addDashboard(new TeddysDashboard(Set.copyOf(scenario.getConfig().qsim().getMainModes())));
 		controller.addOverridingModule(new SimWrapperModule(sw));
 		controller.getConfig().vspExperimental().setVspDefaultsCheckingLevel(VspExperimentalConfigGroup.VspDefaultsCheckingLevel.abort);
