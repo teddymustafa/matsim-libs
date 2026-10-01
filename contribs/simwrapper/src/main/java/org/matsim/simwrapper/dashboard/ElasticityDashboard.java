@@ -15,7 +15,7 @@ import tech.tablesaw.plotly.traces.BarTrace;
 import java.util.*;
 
 /**
- * Dashboard with general overview.
+ * Dashboard with elasticity-stats
  */
 public class ElasticityDashboard implements Dashboard {
 
@@ -30,6 +30,7 @@ public class ElasticityDashboard implements Dashboard {
 
 	private static final Logger log = LogManager.getLogger(ElasticityDashboard.class);
 
+	// this is read in configure, but it is never changed, i.e always empty?!
 	private final List<String> args = new ArrayList<>();
 
 	/**
@@ -139,11 +140,12 @@ public class ElasticityDashboard implements Dashboard {
 			layout.row("category_1_" + cat, TAB_GROUPS)
 				.el(Plotly.class, (viz, data) -> {
 
+					// This is no share
 					viz.title = "PED share";
 					viz.description = "by " + label.toLowerCase();
 					viz.height = 6d;
 					viz.layout = tech.tablesaw.plotly.components.Layout.builder()
-						.barMode(tech.tablesaw.plotly.components.Layout.BarMode.STACK)
+						.barMode(tech.tablesaw.plotly.components.Layout.BarMode.GROUP)
 						.yAxis(Axis.builder().title("Elasticity").build())
 						.build();
 
@@ -165,11 +167,12 @@ public class ElasticityDashboard implements Dashboard {
 			layout.row("category_2_" + cat, TAB_GROUPS)
 				.el(Plotly.class, (viz, data) -> {
 
+					// this is not a distance distribution but PED by distance
 					viz.title = "PED distance distribution";
 					viz.description = "by " + label.toLowerCase();
 					viz.height = 6d;
 					viz.layout = tech.tablesaw.plotly.components.Layout.builder()
-						.barMode(tech.tablesaw.plotly.components.Layout.BarMode.STACK)
+						.barMode(tech.tablesaw.plotly.components.Layout.BarMode.GROUP)
 						.xAxis(Axis.builder().title("Distance group").build())
 						.yAxis(Axis.builder().title("Elasticity").build())
 						.build();

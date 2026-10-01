@@ -25,6 +25,7 @@ public class ElasticityAnalysisTest {
 	private final MatsimTestUtils utils = new MatsimTestUtils();
 	private final CsvOptions csv = new CsvOptions(CSVFormat.Predefined.Default);
 
+	// no @Test?
 	void defaultParametersTest() throws IOException {
 
 		writeInputCsvFiles();
@@ -45,7 +46,7 @@ public class ElasticityAnalysisTest {
 			.isDirectoryContaining("glob:**elasticity_stats_%s.csv")
 		;
 
-
+		// delete input? Why?
 		Path.of(utils.getInputDirectory()).toFile().delete();
 	}
 
@@ -94,10 +95,12 @@ public class ElasticityAnalysisTest {
 		//		only mode car, no mode goods in mode share stats
 		Assertions.assertThat(mainMode.get(0)).isEqualTo("car");
 
+		// delete input? WHY?
 		Path.of(utils.getInputDirectory()).toFile().delete();
 	}
 
 	private void writeInputCsvFiles() throws IOException {
+		// do not write into input-directory in tests. The input-directory is git-tracked. Write to output instead.
 		Path persons = Path.of(utils.getInputDirectory()).resolve("persons.csv");
 		Files.createDirectories(persons.getParent());
 		CSVPrinter printer = csv.createPrinter(persons);
