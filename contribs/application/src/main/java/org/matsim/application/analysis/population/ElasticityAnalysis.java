@@ -17,6 +17,7 @@ import java.util.*;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.matsim.core.config.groups.ScoringConfigGroup;
 import org.matsim.core.utils.io.IOUtils;
 import picocli.CommandLine;
 import tech.tablesaw.api.*;
@@ -90,7 +91,14 @@ public class ElasticityAnalysis implements MATSimAppCommand {
 	public Integer call() throws Exception {
 
 		config = ConfigUtils.loadConfig(input.getPath("config.xml"));
-		betaMoney = config.scoring().getScoringParameters(null).getMarginalUtilityOfMoney();
+		ScoringConfigGroup.ScoringParameterSet scoringParameters = config.scoring().getScoringParameters(subpopulation);
+		if (scoringParameters == null ) {
+			// --subpopulation is promising that subpopulation scoring-params are used, but they never we're used.
+			// currently this is ok, since our config has no sub-pop-specific params, but this wil chnange in the future
+			log.warn("found no scoring-params for subpop {}", subpopulation);
+			scoringParameters = config.scoring().getScoringParameters(null);
+		}
+		betaMoney = scoringParameters.getMarginalUtilityOfMoney();
 
 		Table persons = Table.read().csv(
 			CsvReadOptions.builder(IOUtils.getBufferedReader(input.getPath("persons.csv")))
@@ -99,6 +107,7 @@ public class ElasticityAnalysis implements MATSimAppCommand {
 				.separator(CsvOptions.detectDelimiter(input.getPath("persons.csv")))
 				.build());
 
+		// there is a field SUBPOPULATION, use it! Same for person/age/...
 		persons = persons.where(persons.stringColumn("subpopulation").isEqualTo(subpopulation));
 
 
@@ -230,7 +239,7 @@ public class ElasticityAnalysis implements MATSimAppCommand {
 	 * get monetary distance rate by mode from config.xml
 	 */
 	private double getMonDistRateByMode(String mode) throws IOException {
-
+		// this also ignores subpopulation
 		return config.scoring()
 			.getScoringParameters(null)
 			.getModes()
@@ -277,6 +286,7 @@ public class ElasticityAnalysis implements MATSimAppCommand {
 
 	private void writeElasticityStatsPerModeGrouped(Table trips, String groupColumn, List<String> groups) throws IOException {
 
+		// there is a cli-flag --subpopulation, but PERSON is hardcoded here. Why?
 		Table personTrips = trips.where(trips.stringColumn(SUBPOPULATION).isEqualTo(PERSON));
 
 		groups.add(UNKNOWN);
