@@ -14,6 +14,8 @@ import tech.tablesaw.api.Table;
 import tech.tablesaw.io.csv.CsvReadOptions;
 
 import java.io.IOException;
+import java.io.PrintWriter;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
@@ -21,13 +23,17 @@ import java.util.Map;
 
 public class ElasticityAnalysisTest {
 
+	private static final double BETA = 1.0;
+	private static final double RATE_CAR = -0.0002;
+	private static final double RATE_RIDE = -0.00015;
+
 	@RegisterExtension
 	private final MatsimTestUtils utils = new MatsimTestUtils();
 	private final CsvOptions csv = new CsvOptions(CSVFormat.Predefined.Default);
 
 	void defaultParametersTest() throws IOException {
 
-		writeInputCsvFiles();
+		writeInputFiles();
 
 		new ElasticityAnalysis().execute(
 			"--input-trips", Path.of(utils.getInputDirectory(), "trips.csv").toString(),
@@ -50,37 +56,18 @@ public class ElasticityAnalysisTest {
 	}
 
 	@Test
-	void personFilterTest() throws IOException {
+	void modeFilterTest() throws IOException{
+		writeInputFiles();
 
-		writeInputCsvFiles();
-
-		new ElasticityAnalysis().execute("--subpopulation", "person",
+		new ElasticityAnalysis().execute(
 			"--input-trips", Path.of(utils.getInputDirectory(), "trips.csv").toString(),
 			"--input-persons", Path.of(utils.getInputDirectory(), "persons.csv").toString(),
 			"--input-config", Path.of(utils.getInputDirectory(), "config.xml").toString(),
-
+			"--subpopulation","person",
+			"--modes","car",
 			"--output-elasticity-stats", Path.of(utils.getOutputDirectory(), "analysis", "population", "elasticity_stats.csv").toString(),
 			"--output-elasticity-stats-%s", Path.of(utils.getOutputDirectory(), "analysis", "population", "elasticity_stats_%s.csv").toString()
-			);
-
-//		Path out = Path.of(utils.getOutputDirectory(), "analysis", "population");
-//
-//		Assertions.assertThat(out)
-//			.isDirectoryContaining("glob:**elasticity_stats.csv")
-//			.isDirectoryContaining("glob:**elasticity_stats_%s.csv")
-//		;
-
-		Path dir = Path.of(utils.getOutputDirectory(), "analysis", "population");
-
-		Assertions.assertThat(dir.resolve("elasticity_stats.csv"))
-			.exists()
-			.isNotEmptyFile();
-
-		for (String group : List.of("age_group", "economic_status", "employment", "income_group")) {
-			Assertions.assertThat(dir.resolve("elasticity_stats_%s.csv".formatted(group)))
-				.exists()
-				.isNotEmptyFile();
-		}
+		);
 
 		Table elasticity = Table.read().csv(CsvReadOptions.builder(IOUtils.getBufferedReader(Path.of(utils.getOutputDirectory(), "analysis", "population", "elasticity_stats.csv").toString()))
 			.columnTypesPartial(Map.of("person", ColumnType.STRING))
@@ -97,28 +84,100 @@ public class ElasticityAnalysisTest {
 		Path.of(utils.getInputDirectory()).toFile().delete();
 	}
 
-	private void writeInputCsvFiles() throws IOException {
-		Path persons = Path.of(utils.getInputDirectory()).resolve("persons.csv");
-		Files.createDirectories(persons.getParent());
-		CSVPrinter printer = csv.createPrinter(persons);
+	@Test
+	void calcPEDTest() throws IOException {
 
-//		print dummy persons
-		printer.printRecord("person", "executed_score", "first_act_x", "first_act_y", "first_act_type", "age", "carAvail", "home_x", "home_y", "householdIncome", "householdSize",
-			"income", "sex", "sim_ptAbo", "sim_regionType", "subpopulation", "purpose", "tourStartArea", "vehicleTypes", "economic_status", "employment");
-		printer.printRecord("100", "-130.69951448065348", "369956.19", "5776578.61", "home_49200", "50", "always", "369956.19", "5776578.61", "5", "2", "1159.0", "f", "none", "124", "person", "", "", "", "high", "job_full_time");
+		writeInputFiles();
+
+		new ElasticityAnalysis().execute("--subpopulation", "person",
+			"--input-trips", Path.of(utils.getInputDirectory(), "trips.csv").toString(),
+			"--input-persons", Path.of(utils.getInputDirectory(), "persons.csv").toString(),
+			"--input-config", Path.of(utils.getInputDirectory(), "config.xml").toString(),
+
+			"--output-elasticity-stats", Path.of(utils.getOutputDirectory(), "analysis", "population", "elasticity_stats.csv").toString(),
+			"--output-elasticity-stats-%s", Path.of(utils.getOutputDirectory(), "analysis", "population", "elasticity_stats_%s.csv").toString()
+			);
+
+
+		Path dir = Path.of(utils.getOutputDirectory(), "analysis", "population");
+
+		Assertions.assertThat(dir.resolve("elasticity_stats.csv"))
+			.exists()
+			.isNotEmptyFile();
+
+		for (String group : List.of("age_group", "economic_status", "employment", "income_group")) {
+			Assertions.assertThat(dir.resolve("elasticity_stats_%s.csv".formatted(group)))
+				.exists()
+				.isNotEmptyFile();
+		}
+
+		// Read elasticity_stats.csv into a Tablesaw table for data content assertions
+		Table elasticity = Table.read().csv(CsvReadOptions.builder(IOUtils.getBufferedReader(Path.of(utils.getOutputDirectory(), "analysis", "population", "elasticity_stats.csv").toString()))
+		   .columnTypesPartial(Map.of("person", ColumnType.STRING))
+		   .sample(false)
+		   .separator(CsvOptions.detectDelimiter(Path.of(utils.getOutputDirectory(), "analysis", "population", "elasticity_stats.csv").toString())).build());
+
+		StringColumn mainMode = elasticity.stringColumn("main_mode");
+
+		//		only 1 row with values
+		Assertions.assertThat(elasticity.rowCount()).isEqualTo(2);
+
+		Assertions.assertThat(mainMode.get(0)).isEqualTo("car");
+		Assertions.assertThat(mainMode.get(1)).isEqualTo("ride");
+
+		Path.of(utils.getInputDirectory()).toFile().delete();
+	}
+
+	private void writeInputFiles() throws IOException {
+
+		Path dir = Path.of(utils.getInputDirectory());
+		Files.createDirectories(dir);
+
+
+		//		print dummy persons
+		CSVPrinter printer = csv.createPrinter(dir.resolve("persons.csv"));
+		printer.printRecord("person", "subpopulation", "age", "income", "economic_status", "employment");
+		printer.printRecord("p1","person","48","4800","high", "job_full_time");
+		printer.printRecord("p2","person","22","1300","middle", "student");
+		printer.printRecord("p3","person","12","250","low", "child");
+		printer.printRecord("f1","freight", "","","","");
 		printer.close();
 
-//		print dummy trips
-		printer = csv.createPrinter(Path.of(utils.getInputDirectory(), "trips.csv"));
-		printer.printRecord("person", "trip_number", "trip_id", "dep_time", "trav_time", "wait_time", "traveled_distance", "euclidean_distance", "main_mode", "longest_distance_mode",
-			"modes", "start_activity_type", "end_activity_type", "start_facility_id", "start_link", "start_x", "start_y", "end_facility_id", "end_link", "end_x", "end_y", "first_pt_boarding_stop", "last_pt_egress_stop");
-		printer.printRecord("100", "1", "100_1", "13:57:42", "00:34:07", "00:00:00", "53025", "34976", "car", "car", "walk-car-walk", "home_49200", "errands_3600", "null", "-199781090",
-			"369956.19", "5776578.61", "null", "152273276", "401592.51", "5761661.71", "", "");
-		printer.printRecord("100", "2", "100_2", "15:42:50", "01:01:52", "00:00:00", "78917", "54643", "car", "car", "walk-car-walk", "errands_3600", "errands_4200", "null", "152273276",
-			"401592.51", "5761661.71", "null", "-366338372", "455444.34", "5752394.08", "", "");
-		printer.printRecord("100_goodsTraffic", "1", "100_1", "13:57:42", "00:34:07", "00:00:00", "53025", "34976", "goods", "goods", "walk-goods-walk", "home_49200", "errands_3600", "null", "-199781090",
-			"369956.19", "5776578.61", "null", "152273276", "401592.51", "5761661.71", "", "");
-		printer.close();
+		//        print dummy trips
+        printer = csv.createPrinter(dir.resolve("trips.csv"));
+        printer.printRecord("person", "trip_id", "main_mode", "longest_distance_mode","traveled_distance");
+        printer.printRecord("p1","p1_1","car","car","500");
+        printer.printRecord("p1","p1_2","ride","ride","3000");
+        printer.printRecord("p2","p2_1","car","car","1000");
+        printer.printRecord("p2","p2_2","car","car","3000");
+        printer.printRecord("p2","p2_3","walk","walk","800");
+        printer.printRecord("p2","p2_4","car","car","12000");
+        printer.printRecord("p3","p3_1","bike","bike","1000");
+        printer.printRecord("p3","p3_2","bike","bike","1000");
+        printer.printRecord("f1","f1_1","car","car","50000");
+        printer.close();
+
+		String xml = """
+					<?xml version="1.0" encoding="UTF-8"?>
+					<!DOCTYPE config SYSTEM "http://www.matsim.org/files/dtd/config_v2.dtd">
+					<config>
+					  <module name="scoring">
+						<parameterset type="scoringParameters">
+						  <param name="marginalUtilityOfMoney" value="%s" />
+						  <parameterset type="modeParams">
+							<param name="mode" value="car" />
+							<param name="monetaryDistanceRate" value="%s" />
+						  </parameterset>
+						  <parameterset type="modeParams">
+							<param name="mode" value="ride" />
+							<param name="monetaryDistanceRate" value="%s" />
+						  </parameterset>
+						</parameterset>
+					  </module>
+					</config>
+					""".formatted(BETA, RATE_CAR, RATE_RIDE);
+
+		Files.writeString(dir.resolve("config.xml"), xml, StandardCharsets.UTF_8);
 	}
 
 }
