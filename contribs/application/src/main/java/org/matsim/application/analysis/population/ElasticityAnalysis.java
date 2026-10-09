@@ -44,8 +44,13 @@ public class ElasticityAnalysis implements MATSimAppCommand {
 	private static final String TRIP_NUMBER = "trip_number";
 	private static final String TRAVELED_DISTANCE = "traveled_distance";
 	private static final String AGE = "age";
+	private static final String AGE_GROUP = "age_group";
 	private static final String INCOME = "income";
+	private static final String INCOME_GROUP = "income_group";
 	private static final String SUBPOPULATION = "subpopulation";
+	private static final String ECONOMIC_STATUS = "economic_status";
+	private static final String EMPLOYMENT = "employment";
+	private static final String DIST_GROUP = "dist_group";
 	private static final String UNKNOWN = "unknown";
 
 	@CommandLine.Mixin
@@ -61,7 +66,7 @@ public class ElasticityAnalysis implements MATSimAppCommand {
 	@CommandLine.Option(names = "--dist-groups", split = ",", description = "List of distances for binning", defaultValue = "0,1000,2000,5000,10000,20000")
 	private List<Integer> distGroups;
 	@CommandLine.Option(names = "--age-groups", split = ",", defaultValue = "0,12,18,25,35,66",
-		description = "Age bin edges -> 0-18, 18-30, 30-65, 65+")
+		description = "Age bin brackets -> 0-12, 12-25, 25-35, 35-66,66+")
 	private List<Integer> ageGroups;
 	@CommandLine.Option(names = "--income-groups", split = ",", defaultValue = "0,250,500,750,1000,1250,1500,1750,2000,2500,3000,3500",
 		description = "Income bin edges -> 0-1000, ..., 3500+")
@@ -98,22 +103,30 @@ public class ElasticityAnalysis implements MATSimAppCommand {
 				.separator(CsvOptions.detectDelimiter(input.getPath("persons.csv")))
 				.build());
 
-		persons = persons.where(persons.stringColumn("subpopulation").isEqualTo(subpopulation));
+		persons = persons.where(persons.stringColumn(SUBPOPULATION).isEqualTo(subpopulation));
 
 
-		List<String> chosen = new ArrayList<>(List.of("person", SUBPOPULATION));
+		List<String> chosen = new ArrayList<>(List.of(PERSON, SUBPOPULATION));
 
 		if (isSet(ageGroups)) {
-			addRangeGroup(persons, "age", ageGroups, "age_group");
-			chosen.add("age_group");
+			addRangeGroup(persons, AGE, ageGroups, AGE_GROUP);
+			chosen.add(AGE_GROUP);
 		}
 		if (isSet(incomeGroups)) {
-			addRangeGroup(persons, "income", incomeGroups, "income_group");
-			chosen.add("income_group");
+			addRangeGroup(persons, INCOME, incomeGroups, INCOME_GROUP);
+			chosen.add(INCOME_GROUP);
+		}
+		if (isSet(economicStatus)) {
+//			addRangeGroup(persons, "age", economicStatus, "age_group");
+//			chosen.add("age_group");
+		}
+		if (isSet(employStatus)) {
+//			addRangeGroup(persons, "income", incomeGroups, "income_group");
+//			chosen.add("income_group");
 		}
 
-		chosen.add("economic_status");
-		chosen.add("employment");
+		chosen.add(ECONOMIC_STATUS);
+		chosen.add(EMPLOYMENT);
 		persons = persons.selectColumns(chosen.toArray(String[]::new)); //select the column needed for group analysis
 
 		Table trips = Table.read().csv(
@@ -123,9 +136,9 @@ public class ElasticityAnalysis implements MATSimAppCommand {
 				.separator(CsvOptions.detectDelimiter(input.getPath("trips.csv")))
 				.build());
 
-		// Fallback in case main_mode is missing. Derived from TripAnalysis.java
-		trips.stringColumn(MAIN_MODE).set(trips.stringColumn(MAIN_MODE).isMissing(),
-			trips.stringColumn("longest_distance_mode"));
+//		// Fallback in case main_mode is missing. Derived from TripAnalysis.java
+//		trips.stringColumn(MAIN_MODE).set(trips.stringColumn(MAIN_MODE).isMissing(),
+//			trips.stringColumn("longest_distance_mode"));
 
 		trips = trips.selectColumns(
 			PERSON,MAIN_MODE, TRAVELED_DISTANCE);
@@ -134,11 +147,11 @@ public class ElasticityAnalysis implements MATSimAppCommand {
 		trips = trips.joinOn(PERSON).inner(persons);
 
 		// distance class per trip, combined with age/income in the grouped case
-		addRangeGroup(trips, TRAVELED_DISTANCE, distGroups, "dist_group");
+		addRangeGroup(trips, TRAVELED_DISTANCE, distGroups, DIST_GROUP);
 
 		// Derived from TripAnalysis
 		if (modes == null || modes.isEmpty())
-			modes = new ArrayList<>(new TreeSet<>(trips.stringColumn("main_mode").unique().asList()));
+			modes = new ArrayList<>(new TreeSet<>(trips.stringColumn(MAIN_MODE).unique().asList()));
 
 		// age: labels from the numeric edges
 		List<String> ageLabels = new ArrayList<>(createRangeLabels(ageGroups));
@@ -148,10 +161,10 @@ public class ElasticityAnalysis implements MATSimAppCommand {
 		incomeLabels.add(UNKNOWN);
 
 		writeElasticityStatsPerMode(trips);
-		writeElasticityStatsPerModeGrouped(trips, "age_group", ageLabels);
-		writeElasticityStatsPerModeGrouped(trips, "income_group", incomeLabels);
-		writeElasticityStatsPerModeGrouped(trips, "economic_status", economicStatus);
-		writeElasticityStatsPerModeGrouped(trips, "employment", employStatus);
+		writeElasticityStatsPerModeGrouped(trips, AGE_GROUP, ageLabels);
+		writeElasticityStatsPerModeGrouped(trips, INCOME_GROUP, incomeLabels);
+		writeElasticityStatsPerModeGrouped(trips, ECONOMIC_STATUS, economicStatus);
+		writeElasticityStatsPerModeGrouped(trips, EMPLOYMENT, employStatus);
 
 		return 0;
 	}
@@ -182,7 +195,7 @@ public class ElasticityAnalysis implements MATSimAppCommand {
 
 	/**
 	 * Labels like
-	 * "0-18", "18-30", ..., "65+".
+	 * "0-12", "12-25", ..., "66+".
 	 **/
 
 	private static List<String> createRangeLabels(List<Integer> brackets) {
@@ -247,13 +260,13 @@ public class ElasticityAnalysis implements MATSimAppCommand {
 		int total = trips.rowCount();
 
 		log.info("Default case: {} persons analysed ({} trips)",
-			trips.stringColumn("person").countUnique(), trips.rowCount());
+			trips.stringColumn(PERSON).countUnique(), trips.rowCount());
 
 		try (CSVPrinter printer = new CSVPrinter(
 			Files.newBufferedWriter(output.getPath("elasticity_stats.csv")), CSVFormat.DEFAULT)) {
 
 			// Headers
-			printer.printRecord("main_mode", "n_trips", "mode_share", "avg_distance",
+			printer.printRecord(MAIN_MODE, "n_trips", "mode_share", "avg_distance",
 				"monetary_distance_rate", "monetary_cost_per_trip", "elasticity_cost");
 
 			for (String mode : modes) {
@@ -288,7 +301,7 @@ public class ElasticityAnalysis implements MATSimAppCommand {
 		try (CSVPrinter printer = new CSVPrinter(
 			Files.newBufferedWriter(output.getPath("elasticity_stats_%s.csv", groupColumn)), CSVFormat.DEFAULT)) {
 
-			printer.printRecord(groupColumn, "dist_group", "main_mode", "n_trips", "mode_share", "avg_distance",
+			printer.printRecord(groupColumn, DIST_GROUP, MAIN_MODE, "n_trips", "mode_share", "avg_distance",
 				"monetary_distance_rate", "monetary_cost_per_trip", "elasticity_cost");
 
 			for (String g : groups) {
@@ -297,7 +310,7 @@ public class ElasticityAnalysis implements MATSimAppCommand {
 				if (groupTrips.isEmpty()) continue;
 
 				log.info("{} = {}: {} persons analysed ({} trips)",
-					groupColumn, g, groupTrips.stringColumn("person").countUnique(), groupTrips.rowCount());
+					groupColumn, g, groupTrips.stringColumn(PERSON).countUnique(), groupTrips.rowCount());
 
 				for (String d : dists) {
 
@@ -305,7 +318,7 @@ public class ElasticityAnalysis implements MATSimAppCommand {
 					if (d.equals("all")) {
 						cell = groupTrips;
 					} else {
-						cell = groupTrips.where(groupTrips.stringColumn("dist_group").isEqualTo(d));
+						cell = groupTrips.where(groupTrips.stringColumn(DIST_GROUP).isEqualTo(d));
 					}
 
 					int total = cell.rowCount();

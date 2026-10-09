@@ -121,21 +121,22 @@ public class ElasticityAnalysisTest {
 
 		StringColumn mainMode = elasticity.stringColumn("main_mode");
 
-		//		only 1 row with values
 		Assertions.assertThat(elasticity.rowCount()).isEqualTo(2);
 
 		Assertions.assertThat(mainMode.get(0)).isEqualTo("car");
 		Assertions.assertThat(mainMode.get(1)).isEqualTo("ride");
 
-		DoubleColumn ped = elasticity.doubleColumn("elasticity_cost");
-
 		Table car = elasticity.where(elasticity.stringColumn("main_mode").isEqualTo("car"));
 		Table ride = elasticity.where(elasticity.stringColumn("main_mode").isEqualTo("ride"));
 
-		Assertions.assertThat(car.doubleColumn("elasticity_cost").get(0))
-    		.isEqualTo(-0.41250000000000003);
-		Assertions.assertThat(ride.doubleColumn("elasticity_cost").get(0))
-			.isEqualTo(-0.39374999999999993);
+		Assertions.assertThat(car.numberColumn("avg_distance").getDouble(0))
+			.isEqualTo(4125.0);
+		Assertions.assertThat(car.numberColumn("n_Trips").get(0))
+			.isEqualTo(4);
+		Assertions.assertThat(ride.numberColumn("n_Trips").get(0))
+			.isEqualTo(1);
+		Assertions.assertThat(ride.numberColumn("avg_distance").getDouble(0))
+			.isEqualTo(3000.0);
 
 		Path.of(utils.getInputDirectory()).toFile().delete();
 	}
