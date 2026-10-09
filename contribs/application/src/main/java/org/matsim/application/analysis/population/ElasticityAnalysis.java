@@ -22,7 +22,6 @@ import picocli.CommandLine;
 import tech.tablesaw.api.*;
 import tech.tablesaw.io.csv.CsvReadOptions;
 
-import static java.lang.IO.print;
 
 
 @CommandLine.Command (
@@ -54,8 +53,8 @@ public class ElasticityAnalysis implements MATSimAppCommand {
 	@CommandLine.Mixin
 	private final OutputOptions output = OutputOptions.ofCommand(ElasticityAnalysis.class);
 
-	@CommandLine.Option(names = "--modes", split = ",", description = "Define which modes should be included into elasticity analysis.")
-	private List<String> modes = List.of("car", "ride");
+	@CommandLine.Option(names = "--modes", split = ",", description = "Define which modes should be included into elasticity analysis.", defaultValue = "car,ride")
+	private List<String> modes;
 	@CommandLine.Option(names = "--subpopulation", defaultValue = "person",
 		description = "Subpopulation to analyse; its scoring parameters are used")
 	private String subpopulation;
