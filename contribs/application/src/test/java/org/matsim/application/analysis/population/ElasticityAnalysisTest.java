@@ -9,6 +9,7 @@ import org.matsim.application.options.CsvOptions;
 import org.matsim.core.utils.io.IOUtils;
 import org.matsim.testcases.MatsimTestUtils;
 import tech.tablesaw.api.ColumnType;
+import tech.tablesaw.api.DoubleColumn;
 import tech.tablesaw.api.StringColumn;
 import tech.tablesaw.api.Table;
 import tech.tablesaw.io.csv.CsvReadOptions;
@@ -31,6 +32,7 @@ public class ElasticityAnalysisTest {
 	private final MatsimTestUtils utils = new MatsimTestUtils();
 	private final CsvOptions csv = new CsvOptions(CSVFormat.Predefined.Default);
 
+	@Test
 	void defaultParametersTest() throws IOException {
 
 		writeInputFiles();
@@ -48,10 +50,7 @@ public class ElasticityAnalysisTest {
 
 		Assertions.assertThat(out)
 			.isDirectoryContaining("glob:**elasticity_stats.csv")
-			.isDirectoryContaining("glob:**elasticity_stats_%s.csv")
-		;
-
-
+			.isDirectoryContaining("glob:**elasticity_stats_*.csv");
 		Path.of(utils.getInputDirectory()).toFile().delete();
 	}
 
@@ -59,28 +58,31 @@ public class ElasticityAnalysisTest {
 	void modeFilterTest() throws IOException{
 		writeInputFiles();
 
-		new ElasticityAnalysis().execute(
-			"--input-trips", Path.of(utils.getInputDirectory(), "trips.csv").toString(),
-			"--input-persons", Path.of(utils.getInputDirectory(), "persons.csv").toString(),
-			"--input-config", Path.of(utils.getInputDirectory(), "config.xml").toString(),
-			"--subpopulation","person",
-			"--modes","car",
-			"--output-elasticity-stats", Path.of(utils.getOutputDirectory(), "analysis", "population", "elasticity_stats.csv").toString(),
-			"--output-elasticity-stats-%s", Path.of(utils.getOutputDirectory(), "analysis", "population", "elasticity_stats_%s.csv").toString()
-		);
+		List<String> modes = List.of("car", "ride");
 
-		Table elasticity = Table.read().csv(CsvReadOptions.builder(IOUtils.getBufferedReader(Path.of(utils.getOutputDirectory(), "analysis", "population", "elasticity_stats.csv").toString()))
-			.columnTypesPartial(Map.of("person", ColumnType.STRING))
-			.sample(false)
-			.separator(CsvOptions.detectDelimiter(Path.of(utils.getOutputDirectory(), "analysis", "population", "elasticity_stats.csv").toString())).build());
+		for (String m : modes){
+			new ElasticityAnalysis().execute(
+				"--input-trips", Path.of(utils.getInputDirectory(), "trips.csv").toString(),
+				"--input-persons", Path.of(utils.getInputDirectory(), "persons.csv").toString(),
+				"--input-config", Path.of(utils.getInputDirectory(), "config.xml").toString(),
+				"--subpopulation","person",
+				"--modes",m,
+				"--output-elasticity-stats", Path.of(utils.getOutputDirectory(), "analysis", "population", "elasticity_stats.csv").toString(),
+				"--output-elasticity-stats-%s", Path.of(utils.getOutputDirectory(), "analysis", "population", "elasticity_stats_%s.csv").toString()
+			);
 
-		StringColumn mainMode = elasticity.stringColumn("main_mode");
+			Table elasticity = Table.read().csv(CsvReadOptions.builder(IOUtils.getBufferedReader(Path.of(utils.getOutputDirectory(), "analysis", "population", "elasticity_stats.csv").toString()))
+				.columnTypesPartial(Map.of("person", ColumnType.STRING))
+				.sample(false)
+				.separator(CsvOptions.detectDelimiter(Path.of(utils.getOutputDirectory(), "analysis", "population", "elasticity_stats.csv").toString())).build());
 
-		//		only 1 row with values
-		Assertions.assertThat(elasticity.rowCount()).isEqualTo(1);
-		//		only mode car, no mode goods in mode share stats
-		Assertions.assertThat(mainMode.get(0)).isEqualTo("car");
+			StringColumn mainMode = elasticity.stringColumn("main_mode");
 
+			//		only 1 row with values
+			Assertions.assertThat(elasticity.rowCount()).isEqualTo(1);
+			//		only mode car, no mode goods in mode share stats
+			Assertions.assertThat(mainMode.get(0)).isEqualTo(m);
+		}
 		Path.of(utils.getInputDirectory()).toFile().delete();
 	}
 
@@ -124,6 +126,16 @@ public class ElasticityAnalysisTest {
 
 		Assertions.assertThat(mainMode.get(0)).isEqualTo("car");
 		Assertions.assertThat(mainMode.get(1)).isEqualTo("ride");
+
+		DoubleColumn ped = elasticity.doubleColumn("elasticity_cost");
+
+		Table car = elasticity.where(elasticity.stringColumn("main_mode").isEqualTo("car"));
+		Table ride = elasticity.where(elasticity.stringColumn("main_mode").isEqualTo("ride"));
+
+		Assertions.assertThat(car.doubleColumn("elasticity_cost").get(0))
+    		.isEqualTo(-0.41250000000000003);
+		Assertions.assertThat(ride.doubleColumn("elasticity_cost").get(0))
+			.isEqualTo(-0.39374999999999993);
 
 		Path.of(utils.getInputDirectory()).toFile().delete();
 	}
