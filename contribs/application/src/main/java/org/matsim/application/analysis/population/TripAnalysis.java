@@ -210,6 +210,8 @@ public class TripAnalysis implements MATSimAppCommand {
 			.separator(CsvOptions.detectDelimiter(input.getPath("persons.csv"))).build());
 		StringColumn subpop = persons.stringColumn("subpopulation");
 
+
+
 		StringColumn modelType = StringColumn.create("modelType");
 		StringColumn groupOfSubpopulation = StringColumn.create("groupOfSubpopulation");
 
