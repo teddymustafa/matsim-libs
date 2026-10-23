@@ -20,6 +20,11 @@ import org.w3c.dom.Document;
 import org.w3c.dom.NodeList;
 import org.w3c.dom.Node;
 import org.w3c.dom.Element;
+import tech.tablesaw.api.DoubleColumn;
+import tech.tablesaw.api.StringColumn;
+import tech.tablesaw.api.Table;
+import tech.tablesaw.joining.DataFrameJoiner;
+
 import java.io.File;
 
 import java.util.List;
@@ -101,6 +106,12 @@ public class ScoringAnalysis implements MATSimAppCommand {
 		try {
 			File fXmlFile = new File(experienced_plans);
 
+			Table table = Table.create(
+				StringColumn.create("Person ID"),
+				DoubleColumn.create("Plan Score")
+
+			);
+
 			DocumentBuilderFactory dbFactory = DocumentBuilderFactory.newInstance();
 			DocumentBuilder dBuilder = dbFactory.newDocumentBuilder();
 			Document doc = dBuilder.parse(fXmlFile);
@@ -116,16 +127,22 @@ public class ScoringAnalysis implements MATSimAppCommand {
 				if (nNode.getNodeType() == Node.ELEMENT_NODE) {
 					Element personElement = (Element) nNode;
 					String personId = personElement.getAttribute("id");
-					System.out.println("person id : " + personId);
 
 					NodeList planList = personElement.getElementsByTagName("plan");
 					for(int j = 0; j < planList.getLength(); j++) {
 						Element planElement = (Element) planList.item(j);
 						String score = planElement.getAttribute("score");
-						System.out.println("plan score : " + score);
+
+						table.stringColumn("person ID").append(personId);
+						table.doubleColumn("Plan Score").append(Double.parseDouble(score));
 					}
 				}
 			}
+
+
+
+			System.out.println(table);
+
 		} catch (Exception e) {
 			e.printStackTrace();
 		}
