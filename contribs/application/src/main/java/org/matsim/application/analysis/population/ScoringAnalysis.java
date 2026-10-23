@@ -111,7 +111,8 @@ public class ScoringAnalysis implements MATSimAppCommand {
 			.separator(CsvOptions.detectDelimiter(input.getPath("persons.csv"))).build());
 		persons = persons.selectColumns("person", "age", "income", "subpopulation", "employment", "economic_status");
 
-		parseXML(input.getPath("experienced_plans.xml"));
+		Table expPlan = parseXML(input.getPath("experienced_plans.xml"));
+
 
 //		writeElasticityStatsPerModeGrouped(joined, AGE_GROUP, ageLabels);
 
@@ -158,7 +159,7 @@ public class ScoringAnalysis implements MATSimAppCommand {
 		return UNKNOWN;
 	}
 
-	private void parseXML(String experienced_plans) {
+	private Table parseXML(String experienced_plans) {
 		try {
 			File fXmlFile = new File(experienced_plans);
 
@@ -193,10 +194,8 @@ public class ScoringAnalysis implements MATSimAppCommand {
 					}
 				}
 			}
-
-
-
 			System.out.println(table);
+			return table;
 
 		} catch (Exception e) {
 			e.printStackTrace();
