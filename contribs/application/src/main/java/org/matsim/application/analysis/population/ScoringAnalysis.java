@@ -1,10 +1,14 @@
 package org.matsim.application.analysis.population;
 
+import org.apache.commons.csv.CSVFormat;
+import org.apache.commons.csv.CSVPrinter;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.jspecify.annotations.NonNull;
 import org.matsim.api.core.v01.Scenario;
 import org.matsim.application.CommandSpec;
 import org.matsim.application.MATSimAppCommand;
+import org.matsim.application.options.CsvOptions;
 import org.matsim.application.options.InputOptions;
 import org.matsim.application.options.OutputOptions;
 import org.matsim.core.config.Config;
@@ -12,6 +16,7 @@ import org.matsim.core.config.ConfigUtils;
 import org.matsim.core.population.PopulationUtils;
 import org.matsim.core.population.io.PopulationReader;
 import org.matsim.core.scenario.ScenarioUtils;
+import org.matsim.core.utils.io.IOUtils;
 import picocli.CommandLine;
 
 import javax.xml.parsers.DocumentBuilderFactory;
@@ -20,14 +25,22 @@ import org.w3c.dom.Document;
 import org.w3c.dom.NodeList;
 import org.w3c.dom.Node;
 import org.w3c.dom.Element;
+import tech.tablesaw.api.ColumnType;
 import tech.tablesaw.api.DoubleColumn;
 import tech.tablesaw.api.StringColumn;
 import tech.tablesaw.api.Table;
+import tech.tablesaw.io.csv.CsvReadOptions;
 import tech.tablesaw.joining.DataFrameJoiner;
 
 import java.io.File;
 
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 
 @CommandLine.Command(name = "scoring", description = "Calculates various scoring related metrics.")
 @CommandSpec(
@@ -88,18 +101,61 @@ public class ScoringAnalysis implements MATSimAppCommand {
 	@Override
 	public Integer call() throws Exception {
 
-		Config config = ConfigUtils.loadConfig(input.getPath("config.xml"));
-
-		Scenario scenario = ScenarioUtils.createScenario(config);
-
-		PopulationReader reader = new PopulationReader(scenario);
-		reader.readFile(input.getPath("experienced_plans.xml.gz"));
+		Table persons = Table.read().csv(CsvReadOptions.builder(IOUtils.getBufferedReader(input.getPath("persons.csv")))
+			.columnTypesPartial(Map.of(
+				"person", ColumnType.STRING,
+				"age", ColumnType.DOUBLE,
+				"income", ColumnType.DOUBLE,
+				"subpopulation", ColumnType.STRING))
+			.sample(false)
+			.separator(CsvOptions.detectDelimiter(input.getPath("persons.csv"))).build());
+		persons = persons.selectColumns("person", "age", "income", "subpopulation", "employment", "economic_status");
 
 		parseXML(input.getPath("experienced_plans.xml"));
 
-		log.info("Loaded " + scenario.getPopulation().getPersons().size() + " experienced plans.");
+//		writeElasticityStatsPerModeGrouped(joined, AGE_GROUP, ageLabels);
 
 		return 0;
+	}
+
+	private static void addRangeGroup(@NonNull Table table, String attribute, List<Integer> brackets, String groupColumn) {
+		if (!table.containsColumn(attribute))
+			throw new IllegalStateException("Column '" + attribute + "' not found");
+
+		List<String> labels = createRangeLabels(brackets); // Labels range
+		StringColumn group = StringColumn.create(groupColumn);
+		for (double v : table.numberColumn(attribute).asDoubleColumn())   // works for int, long and double columns, problem when filtering string
+			group.append(rangeLabel(v, brackets, labels)); // Assign person to a certain attribute group
+		table.addColumns(group); //add labelling to the group column
+	}
+
+	/**
+	 * Labels like
+	 * "0-12", "12-25", ..., "66+".
+	 **/
+
+	private static List<String> createRangeLabels(List<Integer> brackets) {
+		List<Integer> sorted = new ArrayList<>(brackets);
+		Collections.sort(sorted);
+		List<String> labels = new ArrayList<>();
+		for (int i = 0; i < sorted.size() - 1; i++)
+			labels.add(sorted.get(i) + "-" + sorted.get(i + 1));
+		labels.add(sorted.getLast() + "+");
+		return labels;
+	}
+
+	/**
+	 * assign person into the predefined label from createRangeLabels()
+	 *
+	 **/
+
+	private static String rangeLabel(double value, List<Integer> brackets, List<String> labels) {
+		if (Double.isNaN(value)) return UNKNOWN;
+		List<Integer> sorted = new ArrayList<>(brackets);
+		Collections.sort(sorted);
+		for (int i = sorted.size() - 1; i >= 0; i--)
+			if (value >= sorted.get(i)) return labels.get(i);
+		return UNKNOWN;
 	}
 
 	private void parseXML(String experienced_plans) {
@@ -117,13 +173,12 @@ public class ScoringAnalysis implements MATSimAppCommand {
 			Document doc = dBuilder.parse(fXmlFile);
 			doc.getDocumentElement().normalize();
 
-			System.out.println("Root element :" + doc.getDocumentElement().getNodeName());
+			log.info("Parsing XML file");
+
 			NodeList personList = doc.getElementsByTagName("person");
-			System.out.println("----------------------------");
 
 			for (int i = 0; i < personList.getLength(); i++) {
 				Node nNode = personList.item(i);
-				System.out.println("\nCurrent Element :" + nNode.getNodeName());
 				if (nNode.getNodeType() == Node.ELEMENT_NODE) {
 					Element personElement = (Element) nNode;
 					String personId = personElement.getAttribute("id");
@@ -146,7 +201,29 @@ public class ScoringAnalysis implements MATSimAppCommand {
 		} catch (Exception e) {
 			e.printStackTrace();
 		}
-		log.info("Parsing XML file");
+	}
+
+	private void writeElasticityStatsPerModeGrouped(Table joined, String groupColumn, List<String> groups, String experienced_plans) throws IOException {
+
+		groups.add(UNKNOWN);
+
+		try (CSVPrinter printer = new CSVPrinter(
+			Files.newBufferedWriter(Path.of(String.format("C:/Users/teddy/Desktop/FG_VSP/test/person_scorestats.csv"), groupColumn)), CSVFormat.DEFAULT)) {
+
+			printer.printRecord(groupColumn, "avg_plan_Score");
+
+			for (String g : groups) {
+
+				double avgScore = joined.numberColumn("plan_score")
+					.where(joined.stringColumn("subpopulation").isEqualTo("person"))
+					.mean();
+
+				printer.printRecord(g, avgScore);
+
+			}
+		} catch (Exception e) {
+			e.printStackTrace();
+		}
 	}
 }
 
