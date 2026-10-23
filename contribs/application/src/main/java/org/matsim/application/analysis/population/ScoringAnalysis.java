@@ -14,6 +14,14 @@ import org.matsim.core.population.io.PopulationReader;
 import org.matsim.core.scenario.ScenarioUtils;
 import picocli.CommandLine;
 
+import javax.xml.parsers.DocumentBuilderFactory;
+import javax.xml.parsers.DocumentBuilder;
+import org.w3c.dom.Document;
+import org.w3c.dom.NodeList;
+import org.w3c.dom.Node;
+import org.w3c.dom.Element;
+import java.io.File;
+
 import java.util.List;
 
 @CommandLine.Command(name = "scoring", description = "Calculates various scoring related metrics.")
@@ -82,9 +90,46 @@ public class ScoringAnalysis implements MATSimAppCommand {
 		PopulationReader reader = new PopulationReader(scenario);
 		reader.readFile(input.getPath("experienced_plans.xml.gz"));
 
+		parseXML(input.getPath("experienced_plans.xml"));
+
 		log.info("Loaded " + scenario.getPopulation().getPersons().size() + " experienced plans.");
 
 		return 0;
+	}
+
+	private void parseXML(String experienced_plans) {
+		try {
+			File fXmlFile = new File(experienced_plans);
+
+			DocumentBuilderFactory dbFactory = DocumentBuilderFactory.newInstance();
+			DocumentBuilder dBuilder = dbFactory.newDocumentBuilder();
+			Document doc = dBuilder.parse(fXmlFile);
+			doc.getDocumentElement().normalize();
+
+			System.out.println("Root element :" + doc.getDocumentElement().getNodeName());
+			NodeList personList = doc.getElementsByTagName("person");
+			System.out.println("----------------------------");
+
+			for (int i = 0; i < personList.getLength(); i++) {
+				Node nNode = personList.item(i);
+				System.out.println("\nCurrent Element :" + nNode.getNodeName());
+				if (nNode.getNodeType() == Node.ELEMENT_NODE) {
+					Element personElement = (Element) nNode;
+					String personId = personElement.getAttribute("id");
+					System.out.println("person id : " + personId);
+
+					NodeList planList = personElement.getElementsByTagName("plan");
+					for(int j = 0; j < planList.getLength(); j++) {
+						Element planElement = (Element) planList.item(j);
+						String score = planElement.getAttribute("score");
+						System.out.println("plan score : " + score);
+					}
+				}
+			}
+		} catch (Exception e) {
+			e.printStackTrace();
+		}
+		log.info("Parsing XML file");
 	}
 }
 
