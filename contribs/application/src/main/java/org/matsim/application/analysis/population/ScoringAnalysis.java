@@ -109,12 +109,14 @@ public class ScoringAnalysis implements MATSimAppCommand {
 				"subpopulation", ColumnType.STRING))
 			.sample(false)
 			.separator(CsvOptions.detectDelimiter(input.getPath("persons.csv"))).build());
-		persons = persons.selectColumns("person", "age", "income", "subpopulation", "employment", "economic_status");
+		persons = persons.selectColumns("person", "executed_score", "age", "income", "subpopulation", "employment", "economic_status");
 
-		Table expPlan = parseXML(input.getPath("experienced_plans.xml"));
+//		Table expPlan = parseXML(input.getPath("experienced_plans.xml"));
 
 
-//		writeElasticityStatsPerModeGrouped(joined, AGE_GROUP, ageLabels);
+
+		writeScoringStatsGrouped(persons, "employment", employStatus);
+		writeScoringStatsGrouped(persons, "economic_status", economicStatus);
 
 		return 0;
 	}
@@ -159,50 +161,8 @@ public class ScoringAnalysis implements MATSimAppCommand {
 		return UNKNOWN;
 	}
 
-	private Table parseXML(String experienced_plans) {
-		try {
-			File fXmlFile = new File(experienced_plans);
 
-			Table table = Table.create(
-				StringColumn.create("Person ID"),
-				DoubleColumn.create("Plan Score")
-
-			);
-
-			DocumentBuilderFactory dbFactory = DocumentBuilderFactory.newInstance();
-			DocumentBuilder dBuilder = dbFactory.newDocumentBuilder();
-			Document doc = dBuilder.parse(fXmlFile);
-			doc.getDocumentElement().normalize();
-
-			log.info("Parsing XML file");
-
-			NodeList personList = doc.getElementsByTagName("person");
-
-			for (int i = 0; i < personList.getLength(); i++) {
-				Node nNode = personList.item(i);
-				if (nNode.getNodeType() == Node.ELEMENT_NODE) {
-					Element personElement = (Element) nNode;
-					String personId = personElement.getAttribute("id");
-
-					NodeList planList = personElement.getElementsByTagName("plan");
-					for(int j = 0; j < planList.getLength(); j++) {
-						Element planElement = (Element) planList.item(j);
-						String score = planElement.getAttribute("score");
-
-						table.stringColumn("person ID").append(personId);
-						table.doubleColumn("Plan Score").append(Double.parseDouble(score));
-					}
-				}
-			}
-			System.out.println(table);
-			return table;
-
-		} catch (Exception e) {
-			e.printStackTrace();
-		}
-	}
-
-	private void writeElasticityStatsPerModeGrouped(Table joined, String groupColumn, List<String> groups, String experienced_plans) throws IOException {
+	private void writeScoringStatsGrouped(Table persons, String groupColumn, List<String> groups) throws IOException {
 
 		groups.add(UNKNOWN);
 
