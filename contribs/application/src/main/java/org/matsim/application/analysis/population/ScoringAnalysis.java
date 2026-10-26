@@ -19,6 +19,7 @@ import tech.tablesaw.api.StringColumn;
 import tech.tablesaw.api.Table;
 import tech.tablesaw.io.csv.CsvReadOptions;
 import tech.tablesaw.joining.DataFrameJoiner;
+import static tech.tablesaw.aggregate.AggregateFunctions.mean;
 
 
 import java.io.IOException;
@@ -104,7 +105,6 @@ public class ScoringAnalysis implements MATSimAppCommand {
 		List<String> incomeLabels = new ArrayList<>(createRangeLabels(incomeGroups));
 		ageLabels.add(UNKNOWN);
 
-
 		for (String s:subpopulations){
 			persons = persons.where(persons.stringColumn(SUBPOPULATION).isEqualTo(s));
 
@@ -160,23 +160,27 @@ public class ScoringAnalysis implements MATSimAppCommand {
 
 	private void writeScoringStatsGrouped(Table persons, String groupColumn, List<String> labels) throws IOException {
 
-		try (CSVPrinter printer = new CSVPrinter(
-			Files.newBufferedWriter(Path.of(String.format("C:/Users/teddy/Desktop/FG_VSP/test/person_scorestats.csv"), groupColumn)), CSVFormat.DEFAULT)) {
+			Path out = Path.of("C:/Users/teddy/Desktop/FG_VSP/test/person_scorestats"+ groupColumn + ".csv");
 
-			printer.printRecord(groupColumn, "avg_plan_Score");
+			StringColumn key = persons.column(groupColumn).asStringColumn().setName(groupColumn);
+			Table slim = Table.create(persons.numberColumn("executed_score"), key);
 
-			for (String l : labels) {
+			Table result = slim.summarize("executed_score", mean).by(groupColumn);
+			result.column(1).setName("avg_plan_score");
 
-				double avgScore = persons.numberColumn("executed_score")
-					.where(persons.stringColumn("subpopulation").isEqualTo("person"))
-					.mean();
+			Files.createDirectories(out.getParent());
+			result.write().csv(out.toString());
 
-				printer.printRecord(l, avgScore);
+//			for (String l : labels) {
+//
+//				double avgScore = persons.numberColumn("executed_score")
+//					.where(persons.stringColumn(groupColumn).isEqualTo(l))
+//					.mean();
+//
+//				printer.printRecord(l, avgScore);
+//
+//			}
 
-			}
-		} catch (Exception e) {
-			e.printStackTrace();
-		}
 	}
 }
 
