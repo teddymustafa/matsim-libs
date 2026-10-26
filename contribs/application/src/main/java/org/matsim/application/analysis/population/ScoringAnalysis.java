@@ -5,26 +5,14 @@ import org.apache.commons.csv.CSVPrinter;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jspecify.annotations.NonNull;
-import org.matsim.api.core.v01.Scenario;
 import org.matsim.application.CommandSpec;
 import org.matsim.application.MATSimAppCommand;
 import org.matsim.application.options.CsvOptions;
 import org.matsim.application.options.InputOptions;
 import org.matsim.application.options.OutputOptions;
-import org.matsim.core.config.Config;
-import org.matsim.core.config.ConfigUtils;
-import org.matsim.core.population.PopulationUtils;
-import org.matsim.core.population.io.PopulationReader;
-import org.matsim.core.scenario.ScenarioUtils;
 import org.matsim.core.utils.io.IOUtils;
 import picocli.CommandLine;
 
-import javax.xml.parsers.DocumentBuilderFactory;
-import javax.xml.parsers.DocumentBuilder;
-import org.w3c.dom.Document;
-import org.w3c.dom.NodeList;
-import org.w3c.dom.Node;
-import org.w3c.dom.Element;
 import tech.tablesaw.api.ColumnType;
 import tech.tablesaw.api.DoubleColumn;
 import tech.tablesaw.api.StringColumn;
@@ -32,7 +20,6 @@ import tech.tablesaw.api.Table;
 import tech.tablesaw.io.csv.CsvReadOptions;
 import tech.tablesaw.joining.DataFrameJoiner;
 
-import java.io.File;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -76,7 +63,7 @@ public class ScoringAnalysis implements MATSimAppCommand {
 
 	@CommandLine.Option(names = "--subpopulation", defaultValue = "person",
 		description = "Subpopulation to analyse; its scoring parameters are used")
-	private String subpopulation;
+	private List<String> subpopulations;
 	@CommandLine.Option(names = "--dist-groups", split = ",", description = "List of distances for binning", defaultValue = "0,1000,2000,5000,10000,20000")
 	private List<Integer> distGroups;
 	@CommandLine.Option(names = "--age-groups", split = ",", defaultValue = "0,12,18,25,35,66",
@@ -111,12 +98,21 @@ public class ScoringAnalysis implements MATSimAppCommand {
 			.separator(CsvOptions.detectDelimiter(input.getPath("persons.csv"))).build());
 		persons = persons.selectColumns("person", "executed_score", "age", "income", "subpopulation", "employment", "economic_status");
 
-//		Table expPlan = parseXML(input.getPath("experienced_plans.xml"));
+		List<String> ageLabels = new ArrayList<>(createRangeLabels(ageGroups));
+		ageLabels.add(UNKNOWN);
+
+		List<String> incomeLabels = new ArrayList<>(createRangeLabels(incomeGroups));
+		ageLabels.add(UNKNOWN);
 
 
+		for (String s:subpopulations){
+			persons = persons.where(persons.stringColumn(SUBPOPULATION).isEqualTo(s));
 
-		writeScoringStatsGrouped(persons, "employment", employStatus);
-		writeScoringStatsGrouped(persons, "economic_status", economicStatus);
+			writeScoringStatsGrouped(persons, AGE, ageLabels);
+			writeScoringStatsGrouped(persons, INCOME, incomeLabels);
+			writeScoringStatsGrouped(persons, EMPLOYMENT, employStatus);
+			writeScoringStatsGrouped(persons, ECONOMIC_STATUS, economicStatus);
+		}
 
 		return 0;
 	}
@@ -162,22 +158,20 @@ public class ScoringAnalysis implements MATSimAppCommand {
 	}
 
 
-	private void writeScoringStatsGrouped(Table persons, String groupColumn, List<String> groups) throws IOException {
-
-		groups.add(UNKNOWN);
+	private void writeScoringStatsGrouped(Table persons, String groupColumn, List<String> labels) throws IOException {
 
 		try (CSVPrinter printer = new CSVPrinter(
 			Files.newBufferedWriter(Path.of(String.format("C:/Users/teddy/Desktop/FG_VSP/test/person_scorestats.csv"), groupColumn)), CSVFormat.DEFAULT)) {
 
 			printer.printRecord(groupColumn, "avg_plan_Score");
 
-			for (String g : groups) {
+			for (String l : labels) {
 
-				double avgScore = joined.numberColumn("plan_score")
-					.where(joined.stringColumn("subpopulation").isEqualTo("person"))
+				double avgScore = persons.numberColumn("executed_score")
+					.where(persons.stringColumn("subpopulation").isEqualTo("person"))
 					.mean();
 
-				printer.printRecord(g, avgScore);
+				printer.printRecord(l, avgScore);
 
 			}
 		} catch (Exception e) {
