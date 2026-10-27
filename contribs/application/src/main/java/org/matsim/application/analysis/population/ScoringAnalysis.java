@@ -34,9 +34,9 @@ import java.util.Map;
 
 @CommandLine.Command(name = "scoring", description = "Calculates various scoring related metrics.")
 @CommandSpec(
-	requires = {"persons.csv", "experienced_plans.xml"},
+	requires = {"persons.csv"},
 	produces = {
-		"person_avgscore.csv","person_avgscore_%s.csv"
+		"person_avgscore_%s.csv"
 	}
 )
 
@@ -120,7 +120,7 @@ public class ScoringAnalysis implements MATSimAppCommand {
 			}
 
 			if(s.equals("freight")){
-				Path out = Path.of("C:/Users/teddy/Desktop/FG_VSP/test/person_scorestats_freight" + ".csv");
+				Path out = output.getPath("person_avgscore_%s.csv");
 
 
 				Table f = subPersons.summarize(EXECUTED_SCORE, mean).apply();
@@ -184,7 +184,7 @@ public class ScoringAnalysis implements MATSimAppCommand {
 	private void writeScoringStatsGrouped(Table persons, String groupColumn, List<String> labels
 	) throws IOException {
 
-			Path out = Path.of("C:/Users/teddy/Desktop/FG_VSP/test/person_scorestats_"+ groupColumn + ".csv");
+			Path out = output.getPath("person_avgscore_%s.csv");
 
 			StringColumn key = persons.column(groupColumn).asStringColumn().setName(groupColumn);
 			Table slim = Table.create(persons.numberColumn(EXECUTED_SCORE), key);
