@@ -1,7 +1,5 @@
 package org.matsim.application.analysis.population;
 
-import org.apache.commons.csv.CSVFormat;
-import org.apache.commons.csv.CSVPrinter;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jspecify.annotations.NonNull;
@@ -45,10 +43,8 @@ public class ScoringAnalysis implements MATSimAppCommand {
 	private static final Logger log = LogManager.getLogger(ScoringAnalysis.class);
 
 	// Static Final Variables
-	private static final String MAIN_MODE = "main_mode";
 	private static final String PERSON = "person";
-	private static final String TRIP_NUMBER = "trip_number";
-	private static final String TRAVELED_DISTANCE = "traveled_distance";
+	private static final String FREIGHT = "freight";
 	private static final String AGE = "age";
 	private static final String AGE_GROUP = "age_group";
 	private static final String INCOME = "income";
@@ -56,7 +52,7 @@ public class ScoringAnalysis implements MATSimAppCommand {
 	private static final String SUBPOPULATION = "subpopulation";
 	private static final String ECONOMIC_STATUS = "economic_status";
 	private static final String EMPLOYMENT = "employment";
-	private static final String DIST_GROUP = "dist_group";
+	private static final String EXECUTED_SCORE = "executed_score";
 	private static final String UNKNOWN = "unknown";
 
 	@CommandLine.Mixin
@@ -64,7 +60,7 @@ public class ScoringAnalysis implements MATSimAppCommand {
 	@CommandLine.Mixin
 	private final OutputOptions output = OutputOptions.ofCommand(ScoringAnalysis.class);
 
-	@CommandLine.Option(names = "--subpopulation", defaultValue = "person",
+	@CommandLine.Option(names = "--subpopulation", split = ",", defaultValue = "person,freight",
 		description = "Subpopulation to analyse; its scoring parameters are used")
 	private List<String> subpopulations;
 	@CommandLine.Option(names = "--age-groups", split = ",", defaultValue = "0,12,18,25,35,66",
@@ -91,35 +87,56 @@ public class ScoringAnalysis implements MATSimAppCommand {
 
 		Table persons = Table.read().csv(CsvReadOptions.builder(IOUtils.getBufferedReader(input.getPath("persons.csv")))
 			.columnTypesPartial(Map.of(
-				"person", ColumnType.STRING,
-				"age", ColumnType.DOUBLE,
-				"income", ColumnType.DOUBLE,
-				"subpopulation", ColumnType.STRING))
+				PERSON, ColumnType.STRING,
+				AGE, ColumnType.DOUBLE,
+				INCOME, ColumnType.DOUBLE,
+				SUBPOPULATION, ColumnType.STRING))
 			.sample(false)
 			.separator(CsvOptions.detectDelimiter(input.getPath("persons.csv"))).build());
-		persons = persons.selectColumns("person", "executed_score", "age", "income", "subpopulation", "employment", "economic_status");
-
-		StringColumn ageGroupCol = StringColumn.create(AGE_GROUP, persons.rowCount());
-		StringColumn incomeGroupCol = StringColumn.create(INCOME_GROUP, persons.rowCount());
-		persons.addColumns(ageGroupCol, incomeGroupCol);
-
-
-		print(persons);
-
-		List<String> ageLabels = new ArrayList<>(createRangeLabels(ageGroups));
-		ageLabels.add(UNKNOWN);
-
-		List<String> incomeLabels = new ArrayList<>(createRangeLabels(incomeGroups));
-		ageLabels.add(UNKNOWN);
+		persons = persons.selectColumns(PERSON, "executed_score", AGE, INCOME, SUBPOPULATION, EMPLOYMENT, ECONOMIC_STATUS);
 
 		for (String s:subpopulations){
+
+			print("subpopulation: " + s);
+
 			persons = persons.where(persons.stringColumn(SUBPOPULATION).isEqualTo(s));
 
-			writeScoringStatsGrouped(persons, AGE_GROUP, ageLabels);
-			writeScoringStatsGrouped(persons, INCOME_GROUP, incomeLabels);
-			writeScoringStatsGrouped(persons, EMPLOYMENT, employStatus);
-			writeScoringStatsGrouped(persons, ECONOMIC_STATUS, economicStatus);
+			if(s.equals(PERSON)){
+				addRangeGroup(persons, INCOME, incomeGroups, INCOME_GROUP);
+				addRangeGroup(persons, AGE, ageGroups, AGE_GROUP);
+
+				List<String> ageLabels = new ArrayList<>(createRangeLabels(ageGroups));
+				ageLabels.add(UNKNOWN);
+
+				List<String> incomeLabels = new ArrayList<>(createRangeLabels(incomeGroups));
+				ageLabels.add(UNKNOWN);
+
+				writeScoringStatsGrouped(persons, AGE_GROUP, ageLabels);
+				writeScoringStatsGrouped(persons, INCOME_GROUP, incomeLabels);
+				writeScoringStatsGrouped(persons, EMPLOYMENT, employStatus);
+				writeScoringStatsGrouped(persons, ECONOMIC_STATUS, economicStatus);
+				print(persons);
+			}
+
+			if(s.equals(FREIGHT)){
+				Path out = Path.of("C:/Users/Desktop/FG_VSP/test/person_scorestats_freight" + ".csv");
+
+				Table slim = Table.create(
+					persons.numberColumn(EXECUTED_SCORE).where(persons.stringColumn(SUBPOPULATION).isEqualTo(FREIGHT))
+				);
+
+				Table result = slim.summarize(EXECUTED_SCORE, mean).apply();
+				result.column(0).setName("avg_plan_score");
+
+				Files.createDirectories(out.getParent());
+				result.write().csv(out.toString());
+				print(persons);
+			}
+
+
 		}
+
+
 
 		return 0;
 	}
@@ -170,9 +187,9 @@ public class ScoringAnalysis implements MATSimAppCommand {
 			Path out = Path.of("C:/Users/teddy/Desktop/FG_VSP/test/person_scorestats_"+ groupColumn + ".csv");
 
 			StringColumn key = persons.column(groupColumn).asStringColumn().setName(groupColumn);
-			Table slim = Table.create(persons.numberColumn("executed_score"), key);
+			Table slim = Table.create(persons.numberColumn(EXECUTED_SCORE), key);
 
-			Table result = slim.summarize("executed_score", mean).by(groupColumn);
+			Table result = slim.summarize(EXECUTED_SCORE, mean).by(groupColumn);
 			result.column(1).setName("avg_plan_score");
 
 			Files.createDirectories(out.getParent());
