@@ -120,7 +120,7 @@ public class ScoringAnalysis implements MATSimAppCommand {
 			}
 
 			if(s.equals("freight")){
-				Path out = output.getPath("person_avgscore_%s.csv");
+				Path out = output.getPath("person_avgscore_freight.csv");
 
 
 				Table f = subPersons.summarize(EXECUTED_SCORE, mean).apply();
@@ -184,7 +184,7 @@ public class ScoringAnalysis implements MATSimAppCommand {
 	private void writeScoringStatsGrouped(Table persons, String groupColumn, List<String> labels
 	) throws IOException {
 
-			Path out = output.getPath("person_avgscore_%s.csv");
+			Path out = output.getPath("person_avgscore_%s.csv", groupColumn);
 
 			StringColumn key = persons.column(groupColumn).asStringColumn().setName(groupColumn);
 			Table slim = Table.create(persons.numberColumn(EXECUTED_SCORE), key);
