@@ -19,6 +19,8 @@ import tech.tablesaw.api.StringColumn;
 import tech.tablesaw.api.Table;
 import tech.tablesaw.io.csv.CsvReadOptions;
 import tech.tablesaw.joining.DataFrameJoiner;
+
+import static java.lang.IO.print;
 import static tech.tablesaw.aggregate.AggregateFunctions.mean;
 
 
@@ -65,8 +67,6 @@ public class ScoringAnalysis implements MATSimAppCommand {
 	@CommandLine.Option(names = "--subpopulation", defaultValue = "person",
 		description = "Subpopulation to analyse; its scoring parameters are used")
 	private List<String> subpopulations;
-	@CommandLine.Option(names = "--dist-groups", split = ",", description = "List of distances for binning", defaultValue = "0,1000,2000,5000,10000,20000")
-	private List<Integer> distGroups;
 	@CommandLine.Option(names = "--age-groups", split = ",", defaultValue = "0,12,18,25,35,66",
 		description = "Age bin brackets -> 0-12, 12-25, 25-35, 35-66,66+")
 	private List<Integer> ageGroups;
@@ -99,20 +99,27 @@ public class ScoringAnalysis implements MATSimAppCommand {
 			.separator(CsvOptions.detectDelimiter(input.getPath("persons.csv"))).build());
 		persons = persons.selectColumns("person", "executed_score", "age", "income", "subpopulation", "employment", "economic_status");
 
+		StringColumn ageGroupCol = StringColumn.create(AGE_GROUP, persons.rowCount());
+		StringColumn incomeGroupCol = StringColumn.create(INCOME_GROUP, persons.rowCount());
+		persons.addColumns(ageGroupCol, incomeGroupCol);
+
+
+		print(persons);
+
 		List<String> ageLabels = new ArrayList<>(createRangeLabels(ageGroups));
 		ageLabels.add(UNKNOWN);
 
 		List<String> incomeLabels = new ArrayList<>(createRangeLabels(incomeGroups));
 		ageLabels.add(UNKNOWN);
 
-		for (String s:subpopulations){
-			persons = persons.where(persons.stringColumn(SUBPOPULATION).isEqualTo(s));
-
-			writeScoringStatsGrouped(persons, AGE, ageLabels);
-			writeScoringStatsGrouped(persons, INCOME, incomeLabels);
-			writeScoringStatsGrouped(persons, EMPLOYMENT, employStatus);
-			writeScoringStatsGrouped(persons, ECONOMIC_STATUS, economicStatus);
-		}
+//		for (String s:subpopulations){
+//			persons = persons.where(persons.stringColumn(SUBPOPULATION).isEqualTo(s));
+//
+//			writeScoringStatsGrouped(persons, AGE_GROUP, ageLabels);
+//			writeScoringStatsGrouped(persons, INCOME_GROUP, incomeLabels);
+//			writeScoringStatsGrouped(persons, EMPLOYMENT, employStatus);
+//			writeScoringStatsGrouped(persons, ECONOMIC_STATUS, economicStatus);
+//		}
 
 		return 0;
 	}
