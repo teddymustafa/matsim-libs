@@ -36,7 +36,7 @@ import java.util.Map;
 @CommandSpec(
 	requires = {"persons.csv"},
 	produces = {
-		"person_avgscore_%s.csv"
+		"person_avgscore_%s.csv", "person_avgscore_freight.csv"
 	}
 )
 
@@ -122,11 +122,18 @@ public class ScoringAnalysis implements MATSimAppCommand {
 			if(s.equals("freight")){
 				Path out = output.getPath("person_avgscore_freight.csv");
 
+				if (out == null) {
+					// Universal relative fallback for local/standalone execution
+					out = Path.of("analysis/population/person_avgscore_freight.csv");
+				}
+
 
 				Table f = subPersons.summarize(EXECUTED_SCORE, mean).apply();
 				f.column(0).setName(EXECUTED_SCORE);
 
-				Files.createDirectories(out.getParent());
+				if (out.getParent() != null) {
+					Files.createDirectories(out.getParent());
+				}
 				f.write().csv(out.toString());
 				print(subPersons);
 				System.out.println();
@@ -186,6 +193,11 @@ public class ScoringAnalysis implements MATSimAppCommand {
 
 			Path out = output.getPath("person_avgscore_%s.csv", groupColumn);
 
+		if (out == null) {
+			// Universal relative fallback for local/standalone execution
+			out = Path.of("analysis/population/person_avgscore_%s.csv", groupColumn);
+		}
+
 			StringColumn key = persons.column(groupColumn).asStringColumn().setName(groupColumn);
 			Table slim = Table.create(persons.numberColumn(EXECUTED_SCORE), key);
 
@@ -207,8 +219,9 @@ public class ScoringAnalysis implements MATSimAppCommand {
 			}
 
 			Table result = Table.create(groupColResult, scoreColResult);
-
-			Files.createDirectories(out.getParent());
+			if (out.getParent() != null) {
+				Files.createDirectories(out.getParent());
+			}
 			result.write().csv(out.toString());
 
 	}
