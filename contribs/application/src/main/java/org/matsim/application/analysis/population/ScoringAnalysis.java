@@ -19,6 +19,8 @@ import tech.tablesaw.io.csv.CsvReadOptions;
 import tech.tablesaw.joining.DataFrameJoiner;
 
 import static java.lang.IO.print;
+import static org.matsim.contrib.common.conventions.vsp.SubpopulationDefaultNames.SUBPOP_FREIGHT;
+import static org.matsim.contrib.common.conventions.vsp.SubpopulationDefaultNames.SUBPOP_PERSON;
 import static tech.tablesaw.aggregate.AggregateFunctions.mean;
 
 
@@ -43,8 +45,6 @@ public class ScoringAnalysis implements MATSimAppCommand {
 	private static final Logger log = LogManager.getLogger(ScoringAnalysis.class);
 
 	// Static Final Variables
-	private static final String PERSON = "person";
-	private static final String FREIGHT = "freight";
 	private static final String AGE = "age";
 	private static final String AGE_GROUP = "age_group";
 	private static final String INCOME = "income";
@@ -87,50 +87,49 @@ public class ScoringAnalysis implements MATSimAppCommand {
 
 		Table persons = Table.read().csv(CsvReadOptions.builder(IOUtils.getBufferedReader(input.getPath("persons.csv")))
 			.columnTypesPartial(Map.of(
-				PERSON, ColumnType.STRING,
+				SUBPOP_PERSON, ColumnType.STRING,
 				AGE, ColumnType.DOUBLE,
 				INCOME, ColumnType.DOUBLE,
 				SUBPOPULATION, ColumnType.STRING))
 			.sample(false)
 			.separator(CsvOptions.detectDelimiter(input.getPath("persons.csv"))).build());
-		persons = persons.selectColumns(PERSON, "executed_score", AGE, INCOME, SUBPOPULATION, EMPLOYMENT, ECONOMIC_STATUS);
+		persons = persons.selectColumns(SUBPOP_PERSON, EXECUTED_SCORE, AGE, INCOME, SUBPOPULATION, EMPLOYMENT, ECONOMIC_STATUS);
+
+		addRangeGroup(persons, INCOME, incomeGroups, INCOME_GROUP);
+		addRangeGroup(persons, AGE, ageGroups, AGE_GROUP);
+
+		List<String> ageLabels = new ArrayList<>(createRangeLabels(ageGroups));
+		ageLabels.add(UNKNOWN);
+
+		List<String> incomeLabels = new ArrayList<>(createRangeLabels(incomeGroups));
+		incomeLabels.add(UNKNOWN);
 
 		for (String s:subpopulations){
+			Table subPersons = persons.where(persons.stringColumn(SUBPOPULATION).isEqualTo(s));
 
 			print("subpopulation: " + s);
 
-			persons = persons.where(persons.stringColumn(SUBPOPULATION).isEqualTo(s));
+			if(s.equals(SUBPOP_PERSON)){
 
-			if(s.equals(PERSON)){
-				addRangeGroup(persons, INCOME, incomeGroups, INCOME_GROUP);
-				addRangeGroup(persons, AGE, ageGroups, AGE_GROUP);
-
-				List<String> ageLabels = new ArrayList<>(createRangeLabels(ageGroups));
-				ageLabels.add(UNKNOWN);
-
-				List<String> incomeLabels = new ArrayList<>(createRangeLabels(incomeGroups));
-				ageLabels.add(UNKNOWN);
-
-				writeScoringStatsGrouped(persons, AGE_GROUP, ageLabels);
-				writeScoringStatsGrouped(persons, INCOME_GROUP, incomeLabels);
-				writeScoringStatsGrouped(persons, EMPLOYMENT, employStatus);
-				writeScoringStatsGrouped(persons, ECONOMIC_STATUS, economicStatus);
-				print(persons);
+				writeScoringStatsGrouped(subPersons, AGE_GROUP);
+				writeScoringStatsGrouped(subPersons, INCOME_GROUP);
+				writeScoringStatsGrouped(subPersons, EMPLOYMENT);
+				writeScoringStatsGrouped(subPersons, ECONOMIC_STATUS);
+				print(subPersons);
+				System.out.println();
 			}
 
-			if(s.equals(FREIGHT)){
-				Path out = Path.of("C:/Users/Desktop/FG_VSP/test/person_scorestats_freight" + ".csv");
+			if(s.equals("freight")){
+				Path out = Path.of("C:/Users/teddy/Desktop/FG_VSP/test/person_scorestats_freight" + ".csv");
 
-				Table slim = Table.create(
-					persons.numberColumn(EXECUTED_SCORE).where(persons.stringColumn(SUBPOPULATION).isEqualTo(FREIGHT))
-				);
 
-				Table result = slim.summarize(EXECUTED_SCORE, mean).apply();
-				result.column(0).setName("avg_plan_score");
+				Table f = subPersons.summarize(EXECUTED_SCORE, mean).apply();
+				f.column(0).setName(EXECUTED_SCORE);
 
 				Files.createDirectories(out.getParent());
-				result.write().csv(out.toString());
-				print(persons);
+				f.write().csv(out.toString());
+				print(subPersons);
+				System.out.println();
 			}
 
 
@@ -182,7 +181,8 @@ public class ScoringAnalysis implements MATSimAppCommand {
 	}
 
 
-	private void writeScoringStatsGrouped(Table persons, String groupColumn, List<String> labels) throws IOException {
+	private void writeScoringStatsGrouped(Table persons, String groupColumn
+	) throws IOException {
 
 			Path out = Path.of("C:/Users/teddy/Desktop/FG_VSP/test/person_scorestats_"+ groupColumn + ".csv");
 
