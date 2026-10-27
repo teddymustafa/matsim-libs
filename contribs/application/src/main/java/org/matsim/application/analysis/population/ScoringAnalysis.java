@@ -112,14 +112,14 @@ public class ScoringAnalysis implements MATSimAppCommand {
 		List<String> incomeLabels = new ArrayList<>(createRangeLabels(incomeGroups));
 		ageLabels.add(UNKNOWN);
 
-//		for (String s:subpopulations){
-//			persons = persons.where(persons.stringColumn(SUBPOPULATION).isEqualTo(s));
-//
-//			writeScoringStatsGrouped(persons, AGE_GROUP, ageLabels);
-//			writeScoringStatsGrouped(persons, INCOME_GROUP, incomeLabels);
-//			writeScoringStatsGrouped(persons, EMPLOYMENT, employStatus);
-//			writeScoringStatsGrouped(persons, ECONOMIC_STATUS, economicStatus);
-//		}
+		for (String s:subpopulations){
+			persons = persons.where(persons.stringColumn(SUBPOPULATION).isEqualTo(s));
+
+			writeScoringStatsGrouped(persons, AGE_GROUP, ageLabels);
+			writeScoringStatsGrouped(persons, INCOME_GROUP, incomeLabels);
+			writeScoringStatsGrouped(persons, EMPLOYMENT, employStatus);
+			writeScoringStatsGrouped(persons, ECONOMIC_STATUS, economicStatus);
+		}
 
 		return 0;
 	}
@@ -167,7 +167,7 @@ public class ScoringAnalysis implements MATSimAppCommand {
 
 	private void writeScoringStatsGrouped(Table persons, String groupColumn, List<String> labels) throws IOException {
 
-			Path out = Path.of("C:/Users/teddy/Desktop/FG_VSP/test/person_scorestats"+ groupColumn + ".csv");
+			Path out = Path.of("C:/Users/teddy/Desktop/FG_VSP/test/person_scorestats_"+ groupColumn + ".csv");
 
 			StringColumn key = persons.column(groupColumn).asStringColumn().setName(groupColumn);
 			Table slim = Table.create(persons.numberColumn("executed_score"), key);
@@ -177,16 +177,6 @@ public class ScoringAnalysis implements MATSimAppCommand {
 
 			Files.createDirectories(out.getParent());
 			result.write().csv(out.toString());
-
-//			for (String l : labels) {
-//
-//				double avgScore = persons.numberColumn("executed_score")
-//					.where(persons.stringColumn(groupColumn).isEqualTo(l))
-//					.mean();
-//
-//				printer.printRecord(l, avgScore);
-//
-//			}
 
 	}
 }
