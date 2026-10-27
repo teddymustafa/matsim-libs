@@ -111,10 +111,10 @@ public class ScoringAnalysis implements MATSimAppCommand {
 
 			if(s.equals(SUBPOP_PERSON)){
 
-				writeScoringStatsGrouped(subPersons, AGE_GROUP);
-				writeScoringStatsGrouped(subPersons, INCOME_GROUP);
-				writeScoringStatsGrouped(subPersons, EMPLOYMENT);
-				writeScoringStatsGrouped(subPersons, ECONOMIC_STATUS);
+				writeScoringStatsGrouped(subPersons, AGE_GROUP, ageLabels);
+				writeScoringStatsGrouped(subPersons, INCOME_GROUP,incomeLabels);
+				writeScoringStatsGrouped(subPersons, EMPLOYMENT,employStatus);
+				writeScoringStatsGrouped(subPersons, ECONOMIC_STATUS,economicStatus);
 				print(subPersons);
 				System.out.println();
 			}
@@ -181,7 +181,7 @@ public class ScoringAnalysis implements MATSimAppCommand {
 	}
 
 
-	private void writeScoringStatsGrouped(Table persons, String groupColumn
+	private void writeScoringStatsGrouped(Table persons, String groupColumn, List<String> labels
 	) throws IOException {
 
 			Path out = Path.of("C:/Users/teddy/Desktop/FG_VSP/test/person_scorestats_"+ groupColumn + ".csv");
@@ -189,8 +189,24 @@ public class ScoringAnalysis implements MATSimAppCommand {
 			StringColumn key = persons.column(groupColumn).asStringColumn().setName(groupColumn);
 			Table slim = Table.create(persons.numberColumn(EXECUTED_SCORE), key);
 
-			Table result = slim.summarize(EXECUTED_SCORE, mean).by(groupColumn);
-			result.column(1).setName("avg_plan_score");
+			StringColumn groupColResult = StringColumn.create(groupColumn);
+			DoubleColumn scoreColResult = DoubleColumn.create("avg_plan_score");
+
+			for(String l:labels){
+				Table subset = slim.where(slim.stringColumn(groupColumn).isEqualTo(l));
+
+				if(subset.isEmpty()){
+					continue;
+				}
+
+				double meanScore = subset.numberColumn(EXECUTED_SCORE).mean();
+
+				groupColResult.append(l);
+				scoreColResult.append(meanScore);
+
+			}
+
+			Table result = Table.create(groupColResult, scoreColResult);
 
 			Files.createDirectories(out.getParent());
 			result.write().csv(out.toString());
