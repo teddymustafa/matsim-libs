@@ -36,7 +36,7 @@ import java.util.Map;
 @CommandSpec(
 	requires = {"persons.csv"},
 	produces = {
-		"person_avgscore_%s.csv", "person_avgscore_freight.csv"
+		"person_avgscore_%s.csv", "avgscore_stats.csv", "person_scorestats_%s.csv"
 	}
 )
 
@@ -104,45 +104,17 @@ public class ScoringAnalysis implements MATSimAppCommand {
 		List<String> incomeLabels = new ArrayList<>(createRangeLabels(incomeGroups));
 		incomeLabels.add(UNKNOWN);
 
-		for (String s:subpopulations){
-			Table subPersons = persons.where(persons.stringColumn(SUBPOPULATION).isEqualTo(s));
+		writeAvgScoreStats(persons);
 
-			print("subpopulation: " + s);
+		writeScoreStatsGrouped(persons, AGE_GROUP, ageLabels);
+		writeScoreStatsGrouped(persons, INCOME_GROUP, incomeLabels);
+		writeScoreStatsGrouped(persons, EMPLOYMENT, employStatus);
+		writeScoreStatsGrouped(persons, ECONOMIC_STATUS, economicStatus);
 
-			if(s.equals(SUBPOP_PERSON)){
-
-				writeScoringStatsGrouped(subPersons, AGE_GROUP, ageLabels);
-				writeScoringStatsGrouped(subPersons, INCOME_GROUP,incomeLabels);
-				writeScoringStatsGrouped(subPersons, EMPLOYMENT,employStatus);
-				writeScoringStatsGrouped(subPersons, ECONOMIC_STATUS,economicStatus);
-				print(subPersons);
-				System.out.println();
-			}
-
-			if(s.equals("freight")){
-				Path out = output.getPath("person_avgscore_freight.csv");
-
-				if (out == null) {
-					// Universal relative fallback for local/standalone execution
-					out = Path.of("analysis/population/person_avgscore_freight.csv");
-				}
-
-
-				Table f = subPersons.summarize(EXECUTED_SCORE, mean).apply();
-				f.column(0).setName(EXECUTED_SCORE);
-
-				if (out.getParent() != null) {
-					Files.createDirectories(out.getParent());
-				}
-				f.write().csv(out.toString());
-				print(subPersons);
-				System.out.println();
-			}
-
-
-		}
-
-
+		writeAvgScoreStatsGrouped(persons, AGE_GROUP, ageLabels);
+		writeAvgScoreStatsGrouped(persons, INCOME_GROUP,incomeLabels);
+		writeAvgScoreStatsGrouped(persons, EMPLOYMENT,employStatus);
+		writeAvgScoreStatsGrouped(persons, ECONOMIC_STATUS,economicStatus);
 
 		return 0;
 	}
@@ -187,8 +159,55 @@ public class ScoringAnalysis implements MATSimAppCommand {
 		return UNKNOWN;
 	}
 
+	private void writeScoreStatsGrouped(Table persons,String groupColumn, List<String> labels) throws IOException {
+		Path out = output.getPath("person_scorestats_%s.csv", groupColumn);
 
-	private void writeScoringStatsGrouped(Table persons, String groupColumn, List<String> labels
+		if (out == null) {
+			// Universal relative fallback for local/standalone execution
+			out = Path.of("analysis/population/person_scorestats_%s.csv", groupColumn);
+		}
+
+		Table slim = persons.selectColumns(SUBPOP_PERSON,EXECUTED_SCORE, groupColumn);
+		StringColumn key = persons.column(groupColumn).asStringColumn();
+		Table result = slim.emptyCopy();
+
+		for(String l:labels){
+			result.append(persons.where(key.isEqualTo(l)));
+		}
+
+		if (out.getParent() != null) {
+			Files.createDirectories(out.getParent());
+		}
+		result.write().csv(out.toString());
+	}
+
+	private void writeAvgScoreStats(Table persons) throws IOException{
+		Path out = output.getPath("avgscore_stats.csv");
+
+		StringColumn groupColResult = StringColumn.create("subpopulation");
+		DoubleColumn scoreColResult = DoubleColumn.create("avg_plan_score");
+
+		if (out == null) {
+			// Universal relative fallback for local/standalone execution
+			out = Path.of("analysis/population/avgscore_stats.csv");
+		}
+
+		for (String s:subpopulations){
+			Table subset = persons.where(persons.stringColumn(SUBPOPULATION).isEqualTo(s));
+			double mean = subset.numberColumn("executed_score").mean();
+
+			groupColResult.append(s);
+			scoreColResult.append(mean);
+		}
+
+		Table result = Table.create(groupColResult, scoreColResult);
+		if (out.getParent() != null) {
+			Files.createDirectories(out.getParent());
+		}
+		result.write().csv(out.toString());
+	}
+
+	private void writeAvgScoreStatsGrouped(Table persons, String groupColumn, List<String> labels
 	) throws IOException {
 
 			Path out = output.getPath("person_avgscore_%s.csv", groupColumn);
