@@ -4,12 +4,15 @@ import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import org.matsim.application.analysis.LogFileAnalysis;
 import org.matsim.application.analysis.population.ScoringAnalysis;
 
+import org.matsim.application.analysis.population.TripAnalysis;
 import org.matsim.simwrapper.*;
 import org.matsim.simwrapper.viz.*;
 import tech.tablesaw.plotly.components.Axis;
 import tech.tablesaw.plotly.traces.BarTrace;
+import tech.tablesaw.plotly.traces.ScatterTrace;
 
 
 import java.util.*;
@@ -42,53 +45,15 @@ public class ScoringDashboard implements Dashboard {
 
 	private void createOverviewTab(Layout layout, String[] a) {
 
-		layout.row("info", "scoring")
-			.el(TextBlock.class, (viz, data) -> {
-				viz.title = "About";
-				viz.content = "Overview of Scoring";
-			});
+		layout.row("first", "Overview").el(Bar.class, (viz, data) -> {
+			viz.title = "Average Score";
+			viz.x = "subpopulation";
+			viz.xAxisName = "Subpopulation";
+			viz.yAxisName = "Avg. Score";
+			viz.columns = List.of("avg_plan_score");
+			viz.dataset = data.compute(ScoringAnalysis.class, "avgscore_stats.csv");
 
-		layout.row("table", "scoring")
-			.el(Table.class, (viz, data) -> {
-				viz.title = "Scoring stats per mode";
-				viz.dataset = data.compute(ScoringAnalysis.class, "person_scorestats.csv", a);
-				viz.showAllRows = true;
-			});
-
-		layout.row("overview", "scoring")
-			.el(Plotly.class, (viz, data) -> {
-				viz.title = "Mode share";
-				viz.description = "basis of the (1 − share) term";
-				viz.layout = tech.tablesaw.plotly.components.Layout.builder()
-					.barMode(tech.tablesaw.plotly.components.Layout.BarMode.STACK)
-					.build();
-
-				Plotly.DataMapping ds = viz.addDataset(data.compute(ScoringAnalysis.class, "person_scorestats.csv", a))
-					.constant("source", "Sim")
-					.mapping()
-					.name("main_mode")
-					.y("source")
-					.x("mode_share");
-
-				viz.addTrace(BarTrace.builder(Plotly.OBJ_INPUT, Plotly.INPUT)
-					.orientation(BarTrace.Orientation.HORIZONTAL)
-					.build(), ds);
-			})
-			.el(Plotly.class, (viz, data) -> {
-				viz.title = "PED per Mode";
-				viz.layout = tech.tablesaw.plotly.components.Layout.builder()
-					.xAxis(Axis.builder().title("Mode").build())
-					.yAxis(Axis.builder().title("Scoring").build())
-					.build();
-
-				Plotly.DataMapping ds = viz.addDataset(data.compute(ScoringAnalysis.class, "person_scorestats.csv", a))
-					.mapping()
-					.name("main_mode")
-					.x("main_mode")
-					.y("elasticity_cost");
-
-				viz.addTrace(BarTrace.builder(Plotly.OBJ_INPUT, Plotly.INPUT).build(), ds);
-			});
+		});
 	}
 
 	/**
@@ -99,7 +64,7 @@ public class ScoringDashboard implements Dashboard {
 
 		for (String cat : CATEGORIES) {
 
-			String label = StringUtils.capitalize(cat.replace("_group", "").replace("_"," "));   // "Age", "Income"
+			String label = StringUtils.capitalize(cat.replace("_group", "").replace("_", " "));   // "Age", "Income"
 
 			layout.row("category_header_" + cat, TAB_GROUPS)
 				.el(TextBlock.class, (viz, data) -> {
@@ -107,60 +72,45 @@ public class ScoringDashboard implements Dashboard {
 					viz.backgroundColor = "transparent";
 				});
 
-			// Scoring share: one stacked bar per group (all distances), like "Mode share" in TripDashboard
+			// Elasticity share: one stacked bar per group (all distances), like "Mode share" in TripDashboard
 			layout.row("category_1_" + cat, TAB_GROUPS)
 				.el(Plotly.class, (viz, data) -> {
 
-					viz.title = "PED share";
+					viz.title = "Average Score";
 					viz.description = "by " + label.toLowerCase();
 					viz.height = 6d;
 					viz.layout = tech.tablesaw.plotly.components.Layout.builder()
-						.barMode(tech.tablesaw.plotly.components.Layout.BarMode.STACK)
 						.yAxis(Axis.builder().title("Scoring").build())
 						.build();
 
 					Plotly.DataMapping ds = viz.addDataset(
-							data.computeWithPlaceholder(ScoringAnalysis.class, "person_scorestats_%s.csv", cat, a))
-						.filter("dist_group", ALL_DIST)          // whole group, all distances
-						.constant("source", "Sim")
+							data.computeWithPlaceholder(ScoringAnalysis.class, "person_avgscore_%s.csv", cat, a))
 						.mapping()// one panel per group
-						.name("main_mode")                        // one colour per mode
 						.x(cat)
-						.y("elasticity_cost");
+						.y("avg_plan_score");
 
-					viz.addTrace(BarTrace.builder(Plotly.OBJ_INPUT, Plotly.INPUT)
-						.orientation(BarTrace.Orientation.VERTICAL)
+					viz.addTrace(ScatterTrace.builder(Plotly.INPUT, Plotly.INPUT)
+						.mode(ScatterTrace.Mode.LINE)
 						.build(), ds);
-				});
-
-			// Scoring distance distribution: like "Modal distance distribution" in TripDashboard
-			layout.row("category_2_" + cat, TAB_GROUPS)
+				})
+				// still figuring out what to do with this...
 				.el(Plotly.class, (viz, data) -> {
 
-					viz.title = "PED distance distribution";
+					viz.title = "Executed Score";
 					viz.description = "by " + label.toLowerCase();
 					viz.height = 6d;
 					viz.layout = tech.tablesaw.plotly.components.Layout.builder()
-						.barMode(tech.tablesaw.plotly.components.Layout.BarMode.STACK)
-						.xAxis(Axis.builder().title("Distance group").build())
 						.yAxis(Axis.builder().title("Scoring").build())
 						.build();
 
-					viz.interactive = Plotly.Interactive.dropdown;
-
-
-
 					Plotly.DataMapping ds = viz.addDataset(
 							data.computeWithPlaceholder(ScoringAnalysis.class, "person_scorestats_%s.csv", cat, a))
-						.filterNotIn("dist_group", "all")
-						.mapping()
-						.name("main_mode")
-						.facetCol(cat)
-						.x("dist_group")
-						.y("elasticity_cost");
+						.mapping()// one panel per group
+						.x("executed_score")
+						.y(cat);
 
-					viz.addTrace(BarTrace.builder(Plotly.OBJ_INPUT, Plotly.INPUT)
-						.orientation(BarTrace.Orientation.VERTICAL)
+					viz.addTrace(ScatterTrace.builder(Plotly.INPUT, Plotly.INPUT)
+						.mode(ScatterTrace.Mode.LINE)
 						.build(), ds);
 				});
 		}
