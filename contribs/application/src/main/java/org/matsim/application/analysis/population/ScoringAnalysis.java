@@ -44,6 +44,12 @@ public class ScoringAnalysis implements MATSimAppCommand {
 
 	private static final Logger log = LogManager.getLogger(ScoringAnalysis.class);
 
+	// how could we make this more generic? We might have scenarios with different
+	// attributes and then this will fail. Maybe look into "TripBySociodemographicGroupsAnalysis"
+	// Although we do not have a ref-file here the concept might be applicable.
+	// Something like --group-by age=0-12,12-18,18-25,...;employment and then use the class
+	// "Category" DR20261103
+	//
 	// Static Final Variables
 	private static final String AGE = "age";
 	private static final String AGE_GROUP = "age_group";
