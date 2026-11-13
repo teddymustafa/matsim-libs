@@ -54,6 +54,28 @@ public class ScoringDashboard implements Dashboard {
 			viz.dataset = data.compute(ScoringAnalysis.class, "avgscore_stats.csv");
 
 		});
+
+		layout.row("second", "Overview").el(Plotly.class, (viz, data) -> {
+
+			String label = StringUtils.capitalize("age".replace("_group", "").replace("_", " "));
+
+			viz.title = "Executed Score";
+			viz.description = "by " + label.toLowerCase();
+			viz.height = 6d;
+			viz.layout = tech.tablesaw.plotly.components.Layout.builder()
+				.yAxis(Axis.builder().title("Scoring").build())
+				.build();
+
+			Plotly.DataMapping ds = viz.addDataset(
+					data.computeWithPlaceholder(ScoringAnalysis.class, "person_avgscore_%s.csv", "age", a))
+				.mapping()// one panel per group
+				.x("avg_plan_score")
+				.y("age");
+
+			viz.addTrace(ScatterTrace.builder(Plotly.INPUT, Plotly.INPUT)
+				.mode(ScatterTrace.Mode.MARKERS)
+				.build(), ds);
+		});
 	}
 
 	/**
@@ -104,13 +126,13 @@ public class ScoringDashboard implements Dashboard {
 						.build();
 
 					Plotly.DataMapping ds = viz.addDataset(
-							data.computeWithPlaceholder(ScoringAnalysis.class, "person_scorestats_%s.csv", cat, a))
+							data.computeWithPlaceholder(ScoringAnalysis.class, "person_avgscore_%s.csv", cat, a))
 						.mapping()// one panel per group
 						.x("executed_score")
 						.y(cat);
 
 					viz.addTrace(ScatterTrace.builder(Plotly.INPUT, Plotly.INPUT)
-						.mode(ScatterTrace.Mode.LINE)
+						.mode(ScatterTrace.Mode.MARKERS)
 						.build(), ds);
 				});
 		}

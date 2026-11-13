@@ -4,6 +4,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.matsim.core.utils.io.IOUtils;
 import tech.tablesaw.api.*;
+import tech.tablesaw.columns.Column;
 import tech.tablesaw.io.csv.CsvReadOptions;
 import tech.tablesaw.selection.Selection;
 
@@ -92,6 +93,26 @@ final class ScoringBySociodemographicGroupsAnalysis {
 		}
 	}
 
-	private record Group(List<String> columns, Table data) {
+	void groupPersons(Table persons) {
+
+		for (Group g : groups) {
+			for (String c : g.columns) {
+
+				if (!persons.columnNames().contains(c)) {
+					log.error("Column {} not found in persons table", c);
+					persons.addColumns(StringColumn.create(c, persons.rowCount()));
+					continue;
+				}
+
+				Column<?> column = persons.column(c);
+
+				StringColumn copy = column.emptyCopy(column.size()).asStringColumn().setName(c);
+				column.mapInto((Object value) -> categories.get(c).categorize(value), copy);
+				persons.replaceColumn(c, copy);
+			}
+		}
 	}
+
+	private record Group(List<String> columns, Table data) {
+		}
 }

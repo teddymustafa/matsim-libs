@@ -11,10 +11,7 @@ import org.matsim.application.options.OutputOptions;
 import org.matsim.core.utils.io.IOUtils;
 import picocli.CommandLine;
 
-import tech.tablesaw.api.ColumnType;
-import tech.tablesaw.api.DoubleColumn;
-import tech.tablesaw.api.StringColumn;
-import tech.tablesaw.api.Table;
+import tech.tablesaw.api.*;
 import tech.tablesaw.io.csv.CsvReadOptions;
 import tech.tablesaw.joining.DataFrameJoiner;
 
@@ -27,10 +24,8 @@ import static tech.tablesaw.aggregate.AggregateFunctions.mean;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
+import java.util.stream.Collectors;
 
 @CommandLine.Command(name = "scoring", description = "Calculates various scoring related metrics.")
 @CommandSpec(
@@ -49,6 +44,8 @@ public class ScoringAnalysis implements MATSimAppCommand {
 	// Although we do not have a ref-file here the concept might be applicable.
 	// Something like --group-by age=0-12,12-18,18-25,...;employment and then use the class
 	// "Category" DR20261103
+	//
+	// Gleiche Logik wie TripBySociodemographicGroupsAnalysis.java
 	//
 	// Static Final Variables
 	private static final String AGE = "age";
@@ -69,6 +66,12 @@ public class ScoringAnalysis implements MATSimAppCommand {
 	@CommandLine.Option(names = "--subpopulation", split = ",", defaultValue = "person,freight",
 		description = "Subpopulation to analyse; its scoring parameters are used")
 	private List<String> subpopulations;
+
+	@CommandLine.Option(names = "--groups-of-subpopulations-personAnalysis", description = "Define the subpopulations for the analysis of the person traffic and defines if the have different groups. If a group is defined by several subpopulations," +
+		"split them by ','. and different groups are seperated by ';'. The analysis output will be for the given groups.", split = ";")
+	private final Map<String, String> groupsOfSubpopulationsForPersonAnalysisRaw = new HashMap<>();
+
+
 	@CommandLine.Option(names = "--age-groups", split = ",", defaultValue = "0,12,18,25,35,66",
 		description = "Age bin brackets -> 0-12, 12-25, 25-35, 35-66,66+")
 	private List<Integer> ageGroups;
@@ -91,6 +94,26 @@ public class ScoringAnalysis implements MATSimAppCommand {
 	@Override
 	public Integer call() throws Exception {
 
+//		ScoringBySociodemographicGroupsAnalysis sociodemographicGroups = null;
+//		if (refData != null) {
+//			sociodemographicGroups = new ScoringBySociodemographicGroupsAnalysis(refData);
+//			sociodemographicGroups.groupPersons(persons);
+//		}
+//
+//
+//		if (sociodemographicGroups != null) {
+//			// filters for all subpopulations that are used for person analysis
+//			if (!groupsOfSubpopulationsForPersonAnalysis.isEmpty()) {
+//				Table filteredForPersons = joined.where(
+//					joined.stringColumn("subpopulation").isIn(groupsOfSubpopulationsForPersonAnalysis.values().stream()
+//						.flatMap(Collection::stream)
+//						.collect(Collectors.toSet())));
+//				sociodemographicGroups.writeModeShare(filteredForPersons, distanceLabels, modeOrder, (g) -> output.getPath("mode_share_per_%s.csv", g));
+//			}
+//			else
+//				sociodemographicGroups.writeModeShare(joined, distanceLabels, modeOrder, (g) -> output.getPath("mode_share_per_%s.csv", g));
+//		}
+
 		Table persons = Table.read().csv(CsvReadOptions.builder(IOUtils.getBufferedReader(input.getPath("persons.csv")))
 			.columnTypesPartial(Map.of(
 				SUBPOP_PERSON, ColumnType.STRING,
@@ -101,69 +124,70 @@ public class ScoringAnalysis implements MATSimAppCommand {
 			.separator(CsvOptions.detectDelimiter(input.getPath("persons.csv"))).build());
 		persons = persons.selectColumns(SUBPOP_PERSON, EXECUTED_SCORE, AGE, INCOME, SUBPOPULATION, EMPLOYMENT, ECONOMIC_STATUS);
 
-		addRangeGroup(persons, INCOME, incomeGroups, INCOME_GROUP);
-		addRangeGroup(persons, AGE, ageGroups, AGE_GROUP);
-
-		List<String> ageLabels = new ArrayList<>(createRangeLabels(ageGroups));
-		ageLabels.add(UNKNOWN);
-
-		List<String> incomeLabels = new ArrayList<>(createRangeLabels(incomeGroups));
-		incomeLabels.add(UNKNOWN);
+//		addRangeGroup(persons, INCOME, incomeGroups, INCOME_GROUP);
+//		addRangeGroup(persons, AGE, ageGroups, AGE_GROUP);
+//
+//		List<String> ageLabels = new ArrayList<>(createRangeLabels(ageGroups));
+//		ageLabels.add(UNKNOWN);
+//
+//		List<String> incomeLabels = new ArrayList<>(createRangeLabels(incomeGroups));
+//		incomeLabels.add(UNKNOWN);
 
 		writeAvgScoreStats(persons);
 
-		writeScoreStatsGrouped(persons, AGE_GROUP, ageLabels);
-		writeScoreStatsGrouped(persons, INCOME_GROUP, incomeLabels);
-		writeScoreStatsGrouped(persons, EMPLOYMENT, employStatus);
-		writeScoreStatsGrouped(persons, ECONOMIC_STATUS, economicStatus);
-
-		writeAvgScoreStatsGrouped(persons, AGE_GROUP, ageLabels);
-		writeAvgScoreStatsGrouped(persons, INCOME_GROUP,incomeLabels);
-		writeAvgScoreStatsGrouped(persons, EMPLOYMENT,employStatus);
-		writeAvgScoreStatsGrouped(persons, ECONOMIC_STATUS,economicStatus);
+//		writeScoreStatsGrouped(persons, AGE_GROUP, ageLabels);
+//		writeScoreStatsGrouped(persons, INCOME_GROUP, incomeLabels);
+//		writeScoreStatsGrouped(persons, EMPLOYMENT, employStatus);
+//		writeScoreStatsGrouped(persons, ECONOMIC_STATUS, economicStatus);
+//
+//		writeAvgScoreStatsGrouped(persons, AGE_GROUP, ageLabels);
+//		writeAvgScoreStatsGrouped(persons, INCOME_GROUP,incomeLabels);
+//		writeAvgScoreStatsGrouped(persons, EMPLOYMENT,employStatus);
+//		writeAvgScoreStatsGrouped(persons, ECONOMIC_STATUS,economicStatus);
+//		writeAvgScoreStatsGrouped(persons, AGE);
 
 		return 0;
 	}
-
-	private static void addRangeGroup(@NonNull Table table, String attribute, List<Integer> brackets, String groupColumn) {
-		if (!table.containsColumn(attribute))
-			throw new IllegalStateException("Column '" + attribute + "' not found");
-
-		List<String> labels = createRangeLabels(brackets); // Labels range
-		StringColumn group = StringColumn.create(groupColumn);
-		for (double v : table.numberColumn(attribute).asDoubleColumn())   // works for int, long and double columns, problem when filtering string
-			group.append(rangeLabel(v, brackets, labels)); // Assign person to a certain attribute group
-		table.addColumns(group); //add labelling to the group column
-	}
-
-	/**
-	 * Labels like
-	 * "0-12", "12-25", ..., "66+".
-	 **/
-
-	private static List<String> createRangeLabels(List<Integer> brackets) {
-		List<Integer> sorted = new ArrayList<>(brackets);
-		Collections.sort(sorted);
-		List<String> labels = new ArrayList<>();
-		for (int i = 0; i < sorted.size() - 1; i++)
-			labels.add(sorted.get(i) + "-" + sorted.get(i + 1));
-		labels.add(sorted.getLast() + "+");
-		return labels;
-	}
-
-	/**
-	 * assign person into the predefined label from createRangeLabels()
-	 *
-	 **/
-
-	private static String rangeLabel(double value, List<Integer> brackets, List<String> labels) {
-		if (Double.isNaN(value)) return UNKNOWN;
-		List<Integer> sorted = new ArrayList<>(brackets);
-		Collections.sort(sorted);
-		for (int i = sorted.size() - 1; i >= 0; i--)
-			if (value >= sorted.get(i)) return labels.get(i);
-		return UNKNOWN;
-	}
+//
+//	private static void addRangeGroup(@NonNull Table table, String attribute, List<Integer> brackets, String groupColumn) {
+//		if (!table.containsColumn(attribute))
+//			throw new IllegalStateException("Column '" + attribute + "' not found");
+//
+//		List<String> labels = createRangeLabels(brackets); // Labels range
+//		StringColumn group = StringColumn.create(groupColumn);
+//		for (double v : table.numberColumn(attribute).asDoubleColumn())   // works for int, long and double columns, problem when filtering string
+//			group.append(rangeLabel(v, brackets, labels)); // Assign person to a certain attribute group
+//		table.addColumns(group); //add labelling to the group column
+//	}
+//
+//	/**
+//	 * Labels like
+//	 * "0-12", "12-25", ..., "66+".
+//	 **/
+//
+//	private static List<String> createRangeLabels(List<Integer> brackets) {
+//		List<Integer> sorted = new ArrayList<>(brackets);
+//		Collections.sort(sorted);
+//		List<String> labels = new ArrayList<>();
+//		for (int i = 0; i < sorted.size() - 1; i++)
+//			labels.add(sorted.get(i) + "-" + sorted.get(i + 1));
+//		labels.add(sorted.getLast() + "+");
+//		return labels;
+//	}
+//
+//	/**
+//	 * assign person into the predefined label from createRangeLabels()
+//	 *
+//	 **/
+//
+//	private static String rangeLabel(double value, List<Integer> brackets, List<String> labels) {
+//		if (Double.isNaN(value)) return UNKNOWN;
+//		List<Integer> sorted = new ArrayList<>(brackets);
+//		Collections.sort(sorted);
+//		for (int i = sorted.size() - 1; i >= 0; i--)
+//			if (value >= sorted.get(i)) return labels.get(i);
+//		return UNKNOWN;
+//	}
 
 	private void writeScoreStatsGrouped(Table persons,String groupColumn, List<String> labels) throws IOException {
 		Path out = output.getPath("person_scorestats_%s.csv", groupColumn);
@@ -249,6 +273,51 @@ public class ScoringAnalysis implements MATSimAppCommand {
 			}
 			result.write().csv(out.toString());
 
+	}
+
+	private void writeAvgScoreStatsGrouped(Table persons, String groupColumn) throws IOException {
+		Path out = output.getPath("person_avgscore_%s.csv", groupColumn);
+
+		if (out == null) {
+			out = Path.of("analysis/population/person_avgscore_%s.csv", groupColumn);
+		}
+
+		Table slim = Table.create(
+			persons.numberColumn(EXECUTED_SCORE),
+			persons.numberColumn(groupColumn)
+		);
+
+		NumberColumn ageCol = (NumberColumn) slim.numberColumn(groupColumn);
+		ageCol.sortAscending();
+		Set<Double> uniqueAges = ageCol.asSet();
+
+		StringColumn groupColResult = StringColumn.create(groupColumn);
+		DoubleColumn scoreColResult = DoubleColumn.create("avg_plan_score");
+
+		for (Double age : uniqueAges) {
+			if (age == null || Double.isNaN(age)) {
+				continue;
+			}
+
+			Table subset = slim.where(slim.numberColumn(groupColumn).isEqualTo(age));
+
+			if (subset.isEmpty()) {
+				continue;
+			}
+
+			double meanScore = subset.numberColumn(EXECUTED_SCORE).mean();
+
+			String ageLabel = (age == Math.floor(age)) ? String.valueOf(age.intValue()) : String.valueOf(age);
+
+			groupColResult.append(ageLabel);
+			scoreColResult.append(meanScore);
+		}
+
+		Table result = Table.create(groupColResult, scoreColResult);
+		if (out.getParent() != null) {
+			Files.createDirectories(out.getParent());
+		}
+		result.write().csv(out.toString());
 	}
 }
 
