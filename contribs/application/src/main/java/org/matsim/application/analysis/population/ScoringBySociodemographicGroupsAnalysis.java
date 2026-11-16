@@ -10,7 +10,9 @@ import tech.tablesaw.selection.Selection;
 
 import java.io.BufferedReader;
 import java.io.IOException;
+import java.nio.file.Path;
 import java.util.*;
+import java.util.function.Function;
 
 final class ScoringBySociodemographicGroupsAnalysis {
 
@@ -21,76 +23,40 @@ final class ScoringBySociodemographicGroupsAnalysis {
 	private Map<String, Category> categories;
 
 	 static void main(String[] args) throws IOException {
-		var analysis = new ScoringBySociodemographicGroupsAnalysis("C:/Users/teddy/Desktop/FG_VSP/output/berlin-v7.1-1pct.output_persons.csv");
+		var analysis = new ScoringBySociodemographicGroupsAnalysis("age=0-12,12-18,18+;license=yes,no");
 		System.out.println(analysis); // or call methods and print results
 	}
 
-	ScoringBySociodemographicGroupsAnalysis(String refData) throws IOException {
+	ScoringBySociodemographicGroupsAnalysis(String groupBy) throws IOException {
+		this.groups = new ArrayList<>();
+		this.categories = new HashMap<>();
 
-		try (BufferedReader reader = IOUtils.getBufferedReader(refData)) {
-			Table ref = Table.read().csv(CsvReadOptions.builder(reader)
-				.columnTypes((column) -> column.equals("executed_score") ? ColumnType.DOUBLE : ColumnType.STRING)
-				.sample(false).separator(';')
-				.build());
 
-			List<String> columns = new ArrayList<>(ref.columnNames());
-			// remove non group columns
-			columns.removeAll(Set.of("dist_group", "main_mode", "executed_score"));
-
-			// Collect all contained groups
-			Set<List<String>> groups = new HashSet<>();
-			for (Row row : ref) {
-
-				List<String> g = new ArrayList<>();
-				for (String c : columns) {
-					if (!row.getString(c).isEmpty())
-						g.add(c);
-				}
-				if (!g.isEmpty())
-					groups.add(g);
+		// Create Categories from groupBy-string
+		// for loop iterates the following:
+		// [age=0-12,12-18,18+],[license=yes,no]
+		 for(String attributes: groupBy.split(";")) {
+			 //separate attribute from its values:
+			 // [age],[0-12,12-18,18+]
+			 String[] attributeValues = attributes.split("=");
+			Category category;
+			// Returns empty set when attribute is empty
+			if( attributeValues.length == 1 ) {
+				category = new Category(Set.of());
 			}
-
-			log.info("Detected groups: {}", groups);
-
-			this.groups = new ArrayList<>();
-
-			for (List<String> g : groups) {
-
-				Selection sel = Selection.withRange(0, ref.rowCount());
-				for (String c : g) {
-					sel = sel.and(ref.stringColumn(c).isNotEqualTo(""));
-				}
-
-				Table gRef = ref.where(sel);
-				this.groups.add(new ScoringBySociodemographicGroupsAnalysis.Group(g, gRef));
+			// Put attributeValues[1] in a set of categories
+			else {
+				category = new Category(Set.of(attributeValues[1].split(",")));
 			}
-
-			this.categories = new HashMap<>();
-			for (List<String> group : groups) {
-				for (String g : group) {
-					if (!this.categories.containsKey(g)) {
-						this.categories.put(g, new Category(ref.column(g).asStringColumn().removeMissing().asSet()));
-					}
-				}
-			}
-
-			// Norm shares per instance of each group to sum of 1
-			for (ScoringBySociodemographicGroupsAnalysis.Group group : this.groups) {
-
-				String norm = group.columns.getFirst();
-				if (group.columns.size() > 1)
-					throw new UnsupportedOperationException("Multiple columns not supported yet");
-
-				Table df = group.data;
-				for (String label : df.stringColumn(norm).asSet()) {
-					DoubleColumn dist_group = df.doubleColumn("executed_score");
-					Selection sel = df.stringColumn(norm).isEqualTo(label);
-					double total = dist_group.where(sel).sum();
-					if (total > 0)
-						dist_group.set(sel, dist_group.divide(total));
-				}
-			}
+			// Put the attribute itself (attributeValues[0]) as the key
+			categories.put(attributeValues[0], category);
 		}
+
+		Set<String> attributes = categories.keySet();
+
+
+		log.info("Detected Groups {}:", attributes);
+		log.info("Ranges Detected {}:", categories.values());
 	}
 
 	void groupPersons(Table persons) {
@@ -111,6 +77,23 @@ final class ScoringBySociodemographicGroupsAnalysis {
 				persons.replaceColumn(c, copy);
 			}
 		}
+	}
+
+	void writeAvgScore(Table filteredPersons, Function<String, Path> output){
+
+		 for(Group group : groups){
+			 List<String> columns = new ArrayList<>(List.of("executed_score"));
+			 columns.addAll(group.columns);
+
+			 String[] join = columns.toArray(new String[0]);
+
+			 Double meanScore = filteredPersons.numberColumn("executed_score").mean();
+		 }
+
+		 Table slim = Table.create(
+			 filteredPersons.numberColumn("executed_score"),
+			 filteredPersons.numberColumn(String.valueOf(groups))
+		 );
 	}
 
 	private record Group(List<String> columns, Table data) {

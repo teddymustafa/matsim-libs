@@ -67,9 +67,9 @@ public class ScoringAnalysis implements MATSimAppCommand {
 		description = "Subpopulation to analyse; its scoring parameters are used")
 	private List<String> subpopulations;
 
-	@CommandLine.Option(names = "--groups-of-subpopulations-personAnalysis", description = "Define the subpopulations for the analysis of the person traffic and defines if the have different groups. If a group is defined by several subpopulations," +
+	@CommandLine.Option(names = "--groups-by", description = "Define the subpopulations for the analysis of the person traffic and defines if the have different groups. If a group is defined by several subpopulations," +
 		"split them by ','. and different groups are seperated by ';'. The analysis output will be for the given groups.", split = ";")
-	private final Map<String, String> groupsOfSubpopulationsForPersonAnalysisRaw = new HashMap<>();
+	private String groupBy;
 
 
 	@CommandLine.Option(names = "--age-groups", split = ",", defaultValue = "0,12,18,25,35,66",
@@ -123,6 +123,13 @@ public class ScoringAnalysis implements MATSimAppCommand {
 			.sample(false)
 			.separator(CsvOptions.detectDelimiter(input.getPath("persons.csv"))).build());
 		persons = persons.selectColumns(SUBPOP_PERSON, EXECUTED_SCORE, AGE, INCOME, SUBPOPULATION, EMPLOYMENT, ECONOMIC_STATUS);
+
+		ScoringBySociodemographicGroupsAnalysis sociodemographicGroups = null;
+		if(groupBy != null){
+			sociodemographicGroups = new ScoringBySociodemographicGroupsAnalysis(groupBy);
+			sociodemographicGroups.groupPersons(persons);
+		}
+
 
 //		addRangeGroup(persons, INCOME, incomeGroups, INCOME_GROUP);
 //		addRangeGroup(persons, AGE, ageGroups, AGE_GROUP);
