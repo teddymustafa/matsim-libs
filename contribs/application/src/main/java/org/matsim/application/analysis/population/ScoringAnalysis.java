@@ -67,8 +67,8 @@ public class ScoringAnalysis implements MATSimAppCommand {
 		description = "Subpopulation to analyse; its scoring parameters are used")
 	private List<String> subpopulations;
 
-	@CommandLine.Option(names = "--groups-by", description = "Define the subpopulations for the analysis of the person traffic and defines if the have different groups. If a group is defined by several subpopulations," +
-		"split them by ','. and different groups are seperated by ';'. The analysis output will be for the given groups.", split = ";")
+	@CommandLine.Option(names = "--group-by", description = "Define the subpopulations for the analysis of the person traffic and defines if the have different groups. If a group is defined by several subpopulations," +
+		"split them by ','. and different groups are seperated by ';'. The analysis output will be for the given groups.", defaultValue = "age=0-12,12-25,25-35,35-66,66+;income=0-1000,1000-1250,1250-1500,1500-1750,1750-2000,2000-2500,2500-3000,3000-3500, 3500+")
 	private String groupBy;
 
 
@@ -131,6 +131,12 @@ public class ScoringAnalysis implements MATSimAppCommand {
 		}
 
 
+		if (sociodemographicGroups != null) {
+			Table filteredForPersons = persons.where(
+				persons.stringColumn("subpopulation").isEqualTo("person"));
+			sociodemographicGroups.writeAvgScore(filteredForPersons,(g) -> output.getPath("mode_share_per_%s.csv", g));
+		}
+
 //		addRangeGroup(persons, INCOME, incomeGroups, INCOME_GROUP);
 //		addRangeGroup(persons, AGE, ageGroups, AGE_GROUP);
 //
@@ -139,7 +145,7 @@ public class ScoringAnalysis implements MATSimAppCommand {
 //
 //		List<String> incomeLabels = new ArrayList<>(createRangeLabels(incomeGroups));
 //		incomeLabels.add(UNKNOWN);
-
+		System.out.println(" ");
 		writeAvgScoreStats(persons);
 
 //		writeScoreStatsGrouped(persons, AGE_GROUP, ageLabels);

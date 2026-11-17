@@ -23,13 +23,14 @@ final class ScoringBySociodemographicGroupsAnalysis {
 	private Map<String, Category> categories;
 
 	 static void main(String[] args) throws IOException {
-		var analysis = new ScoringBySociodemographicGroupsAnalysis("age=0-12,12-18,18+;license=yes,no");
+		var analysis = new ScoringBySociodemographicGroupsAnalysis("age=0-12,12-18,18+;income=0-1000,1000-1250,1250-1500,1500-1750,1750-2000,2000-2500,2500-3000,3000-3500, 3500+");
 		System.out.println(analysis); // or call methods and print results
 	}
 
 	ScoringBySociodemographicGroupsAnalysis(String groupBy) throws IOException {
 		this.groups = new ArrayList<>();
 		this.categories = new HashMap<>();
+
 
 
 		// Create Categories from groupBy-string
@@ -39,20 +40,32 @@ final class ScoringBySociodemographicGroupsAnalysis {
 			 //separate attribute from its values:
 			 // [age],[0-12,12-18,18+]
 			 String[] attributeValues = attributes.split("=");
-			Category category;
+			 Category category;
+			 Table data;
 			// Returns empty set when attribute is empty
 			if( attributeValues.length == 1 ) {
 				category = new Category(Set.of());
+				data = Table.create(attributeValues[0],
+					StringColumn.create(attributeValues[0]));
 			}
 			// Put attributeValues[1] in a set of categories
 			else {
-				category = new Category(Set.of(attributeValues[1].split(",")));
+
+				category = new Category(
+
+					Set.of(
+						attributeValues[1].split(",")
+					));
+				data = Table.create(attributeValues[0], StringColumn.create(attributeValues[0],attributeValues[1].split(",")));
 			}
 			// Put the attribute itself (attributeValues[0]) as the key
 			categories.put(attributeValues[0], category);
+
+			groups.add(new Group(List.of(attributeValues[0])));
+
 		}
 
-		Set<String> attributes = categories.keySet();
+		 Set<String> attributes = categories.keySet();
 
 
 		log.info("Detected Groups {}:", attributes);
@@ -60,7 +73,6 @@ final class ScoringBySociodemographicGroupsAnalysis {
 	}
 
 	void groupPersons(Table persons) {
-
 		for (Group g : groups) {
 			for (String c : g.columns) {
 
@@ -81,13 +93,18 @@ final class ScoringBySociodemographicGroupsAnalysis {
 
 	void writeAvgScore(Table filteredPersons, Function<String, Path> output){
 
+		DoubleColumn scoreColResult = DoubleColumn.create("avg_plan_score");
+
 		 for(Group group : groups){
-			 List<String> columns = new ArrayList<>(List.of("executed_score"));
-			 columns.addAll(group.columns);
+//			 List<String> columns = new ArrayList<>(List.of("executed_score"));
+//			 columns.addAll(group.columns);
+//
+//			 String[] join = columns.toArray(new String[0]);
+//
+//			 Double meanScore = filteredPersons.numberColumn("executed_score").mean();
+			 double mean = filteredPersons.numberColumn("executed_score").mean();
 
-			 String[] join = columns.toArray(new String[0]);
-
-			 Double meanScore = filteredPersons.numberColumn("executed_score").mean();
+			 scoreColResult.append(mean);
 		 }
 
 		 Table slim = Table.create(
@@ -96,6 +113,8 @@ final class ScoringBySociodemographicGroupsAnalysis {
 		 );
 	}
 
-	private record Group(List<String> columns, Table data) {
+	private record Group(List<String> columns
+//		,Table data
+	) {
 		}
 }
