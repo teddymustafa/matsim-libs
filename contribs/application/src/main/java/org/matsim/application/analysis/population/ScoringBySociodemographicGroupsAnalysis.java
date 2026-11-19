@@ -14,6 +14,8 @@ import java.nio.file.Path;
 import java.util.*;
 import java.util.function.Function;
 
+import static tech.tablesaw.aggregate.AggregateFunctions.mean;
+
 final class ScoringBySociodemographicGroupsAnalysis {
 
 	private final static Logger log = LogManager.getLogger(ScoringBySociodemographicGroupsAnalysis.class);
@@ -91,26 +93,24 @@ final class ScoringBySociodemographicGroupsAnalysis {
 		}
 	}
 
-	void writeAvgScore(Table filteredPersons, Function<String, Path> output){
+	void writeScoreStats(Table filteredPersons, Function<String, Path> output){
 
-		DoubleColumn scoreColResult = DoubleColumn.create("avg_plan_score");
+		DoubleColumn scoreCol = DoubleColumn.create("executed_score");
+
 
 		 for(Group group : groups){
-//			 List<String> columns = new ArrayList<>(List.of("executed_score"));
-//			 columns.addAll(group.columns);
-//
-//			 String[] join = columns.toArray(new String[0]);
-//
-//			 Double meanScore = filteredPersons.numberColumn("executed_score").mean();
-			 double mean = filteredPersons.numberColumn("executed_score").mean();
+			 String[] byCols = group.columns.toArray(new String[0]);
 
-			 scoreColResult.append(mean);
+			 Table stats = filteredPersons.summarize("executed_score", mean).by(byCols);
+
+			 int idx = stats.columnCount() - 1;
+			 stats.column(idx).setName("average_score");
+
+			 String name = String.join("_", group.columns);
+			 stats.write().csv(output.apply(name).toFile());
+
 		 }
 
-		 Table slim = Table.create(
-			 filteredPersons.numberColumn("executed_score"),
-			 filteredPersons.numberColumn(String.valueOf(groups))
-		 );
 	}
 
 	private record Group(List<String> columns

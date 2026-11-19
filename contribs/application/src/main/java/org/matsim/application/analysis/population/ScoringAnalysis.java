@@ -31,7 +31,7 @@ import java.util.stream.Collectors;
 @CommandSpec(
 	requires = {"persons.csv"},
 	produces = {
-		"person_avgscore_%s.csv", "avgscore_stats.csv", "person_scorestats_%s.csv"
+		"person_avgscore_%s.csv", "avgscore_stats.csv", "person_scorestats_%s.csv","test_scorestats_per_%s.csv"
 	}
 )
 
@@ -134,7 +134,7 @@ public class ScoringAnalysis implements MATSimAppCommand {
 		if (sociodemographicGroups != null) {
 			Table filteredForPersons = persons.where(
 				persons.stringColumn("subpopulation").isEqualTo("person"));
-			sociodemographicGroups.writeAvgScore(filteredForPersons,(g) -> output.getPath("mode_share_per_%s.csv", g));
+			sociodemographicGroups.writeScoreStats(filteredForPersons,(g) -> output.getPath("test_scorestats_per_%s.csv", g));
 		}
 
 //		addRangeGroup(persons, INCOME, incomeGroups, INCOME_GROUP);
