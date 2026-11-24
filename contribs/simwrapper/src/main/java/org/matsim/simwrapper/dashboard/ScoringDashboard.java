@@ -7,7 +7,6 @@ import org.apache.logging.log4j.Logger;
 import org.matsim.application.analysis.LogFileAnalysis;
 import org.matsim.application.analysis.population.ScoringAnalysis;
 
-import org.matsim.application.analysis.population.TripAnalysis;
 import org.matsim.simwrapper.*;
 import org.matsim.simwrapper.viz.*;
 import tech.tablesaw.plotly.components.Axis;
@@ -22,10 +21,7 @@ public class ScoringDashboard implements Dashboard {
 	private static final String TAB_GROUPS = "By Groups";
 
 	/** Group columns written by ScoringAnalysis (placeholder %s in person_scorestats_%s.csv). */
-	private static final List<String> CATEGORIES = List.of("age_group", "income_group", "economic_status", "employment");
-
-	/** dist_group value of the rows covering the whole group (all distances). */
-	private static final String ALL_DIST = "all";
+	private static final List<String> CATEGORIES = List.of("age", "income", "economic_status", "employment");
 
 	private static final Logger log = LogManager.getLogger(ScoringDashboard.class);
 
@@ -50,32 +46,32 @@ public class ScoringDashboard implements Dashboard {
 			viz.x = "subpopulation";
 			viz.xAxisName = "Subpopulation";
 			viz.yAxisName = "Avg. Score";
-			viz.columns = List.of("avg_plan_score");
-			viz.dataset = data.compute(ScoringAnalysis.class, "avgscore_stats.csv");
+			viz.columns = List.of("average_score");
+			viz.dataset = data.compute(ScoringAnalysis.class, "avgscorestats.csv");
 
 		});
 
-		layout.row("second", "Overview").el(Plotly.class, (viz, data) -> {
-
-			String label = StringUtils.capitalize("age".replace("_group", "").replace("_", " "));
-
-			viz.title = "Executed Score";
-			viz.description = "by " + label.toLowerCase();
-			viz.height = 6d;
-			viz.layout = tech.tablesaw.plotly.components.Layout.builder()
-				.yAxis(Axis.builder().title("Scoring").build())
-				.build();
-
-			Plotly.DataMapping ds = viz.addDataset(
-					data.computeWithPlaceholder(ScoringAnalysis.class, "person_avgscore_%s.csv", "age", a))
-				.mapping()// one panel per group
-				.x("avg_plan_score")
-				.y("age");
-
-			viz.addTrace(ScatterTrace.builder(Plotly.INPUT, Plotly.INPUT)
-				.mode(ScatterTrace.Mode.MARKERS)
-				.build(), ds);
-		});
+//		layout.row("second", "Overview").el(Plotly.class, (viz, data) -> {
+//
+//			String label = StringUtils.capitalize("age".replace("_group", "").replace("_", " "));
+//
+//			viz.title = "Executed Score";
+//			viz.description = "by " + label.toLowerCase();
+//			viz.height = 6d;
+//			viz.layout = tech.tablesaw.plotly.components.Layout.builder()
+//				.yAxis(Axis.builder().title("Scoring").build())
+//				.build();
+//
+//			Plotly.DataMapping ds = viz.addDataset(
+//					data.computeWithPlaceholder(ScoringAnalysis.class, "person_avgscorestats_%s.csv", "age", a))
+//				.mapping()// one panel per group
+//				.x("average_score")
+//				.y("age");
+//
+//			viz.addTrace(ScatterTrace.builder(Plotly.INPUT, Plotly.INPUT)
+//				.mode(ScatterTrace.Mode.MARKERS)
+//				.build(), ds);
+//		});
 	}
 
 	/**
@@ -86,7 +82,7 @@ public class ScoringDashboard implements Dashboard {
 
 		for (String cat : CATEGORIES) {
 
-			String label = StringUtils.capitalize(cat.replace("_group", "").replace("_", " "));   // "Age", "Income"
+			String label = StringUtils.capitalize(cat);   // "Age", "Income"
 
 			layout.row("category_header_" + cat, TAB_GROUPS)
 				.el(TextBlock.class, (viz, data) -> {
@@ -94,7 +90,6 @@ public class ScoringDashboard implements Dashboard {
 					viz.backgroundColor = "transparent";
 				});
 
-			// Elasticity share: one stacked bar per group (all distances), like "Mode share" in TripDashboard
 			layout.row("category_1_" + cat, TAB_GROUPS)
 				.el(Plotly.class, (viz, data) -> {
 
@@ -106,35 +101,37 @@ public class ScoringDashboard implements Dashboard {
 						.build();
 
 					Plotly.DataMapping ds = viz.addDataset(
-							data.computeWithPlaceholder(ScoringAnalysis.class, "person_avgscore_%s.csv", cat, a))
+							data.computeWithPlaceholder(ScoringAnalysis.class, "person_avgscorestats_per_%s.csv", cat, a))
 						.mapping()// one panel per group
 						.x(cat)
-						.y("avg_plan_score");
+						.y("average_score");
 
-					viz.addTrace(ScatterTrace.builder(Plotly.INPUT, Plotly.INPUT)
-						.mode(ScatterTrace.Mode.LINE)
-						.build(), ds);
-				})
-				// still figuring out what to do with this...
-				.el(Plotly.class, (viz, data) -> {
-
-					viz.title = "Executed Score";
-					viz.description = "by " + label.toLowerCase();
-					viz.height = 6d;
-					viz.layout = tech.tablesaw.plotly.components.Layout.builder()
-						.yAxis(Axis.builder().title("Scoring").build())
-						.build();
-
-					Plotly.DataMapping ds = viz.addDataset(
-							data.computeWithPlaceholder(ScoringAnalysis.class, "person_avgscore_%s.csv", cat, a))
-						.mapping()// one panel per group
-						.x("executed_score")
-						.y(cat);
-
-					viz.addTrace(ScatterTrace.builder(Plotly.INPUT, Plotly.INPUT)
-						.mode(ScatterTrace.Mode.MARKERS)
+//					viz.addTrace(ScatterTrace.builder(Plotly.INPUT, Plotly.INPUT)
+//						.mode(ScatterTrace.Mode.LINE)
+//						.build(), ds);
+					viz.addTrace(BarTrace.builder(Plotly.OBJ_INPUT, Plotly.INPUT)
 						.build(), ds);
 				});
+				// still figuring out what to do with this...
+//				.el(Plotly.class, (viz, data) -> {
+//
+//					viz.title = "Executed Score";
+//					viz.description = "by " + label.toLowerCase();
+//					viz.height = 6d;
+//					viz.layout = tech.tablesaw.plotly.components.Layout.builder()
+//						.yAxis(Axis.builder().title("Scoring").build())
+//						.build();
+//
+//					Plotly.DataMapping ds = viz.addDataset(
+//							data.computeWithPlaceholder(ScoringAnalysis.class, "person_avgscorestats_per_%s.csv", cat, a))
+//						.mapping()// one panel per group
+//						.x("average_score")
+//						.y(cat);
+//
+//					viz.addTrace(ScatterTrace.builder(Plotly.INPUT, Plotly.INPUT)
+//						.mode(ScatterTrace.Mode.MARKERS)
+//						.build(), ds);
+//				});
 		}
 	}
 }
